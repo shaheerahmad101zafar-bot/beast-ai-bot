@@ -1,0 +1,87 @@
+services:
+  beast_api:
+    build: .
+    image: beast-ai-bot:11
+    container_name: beast_api
+    command: ["python", "run_app.py"]
+    environment:
+      API_HOST: "0.0.0.0"
+      API_PORT: "8000"
+      BOT_AUTO_START: "false"
+      SITE_BASE_URL: "${SITE_BASE_URL:-https://localhost}"
+      JWT_SECRET: "${JWT_SECRET:-change-me-in-production}"
+      STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY:-}"
+      STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-}"
+      NOWPAYMENTS_API_KEY: "${NOWPAYMENTS_API_KEY:-}"
+      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN:-}"
+      TELEGRAM_CHAT_ID: "${TELEGRAM_CHAT_ID:-}"
+    volumes:
+      - beast_data:/app/data
+      - beast_content:/app/content
+      - ./dashboard:/app/dashboard:ro
+    expose:
+      - "8000"
+    networks:
+      - beast_net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  beast_worker:
+    image: beast-ai-bot:11
+    container_name: beast_worker
+    depends_on:
+      beast_api:
+        condition: service_started
+    command: ["python", "run_worker.py"]
+    environment:
+      BOT_AUTO_START: "true"
+      JWT_SECRET: "${JWT_SECRET:-change-me-in-production}"
+      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN:-}"
+      TELEGRAM_CHAT_ID: "${TELEGRAM_CHAT_ID:-}"
+    volumes:
+      - beast_data:/app/data
+      - beast_content:/app/content
+    networks:
+      - beast_net
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: beast_nginx
+    depends_on:
+      - beast_api
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./deploy/certbot/conf:/etc/letsencrypt:ro
+      - ./deploy/certbot/www:/var/www/certbot:ro
+    networks:
+      - beast_net
+    restart: unless-stopped
+
+  # Optional: run once to issue/renew certificates
+  # docker compose run --rm certbot certonly --webroot -w /var/www/certbot -d your.domain
+  certbot:
+    image: certbot/certbot:latest
+    container_name: beast_certbot
+    volumes:
+      - ./deploy/certbot/conf:/etc/letsencrypt
+      - ./deploy/certbot/www:/var/www/certbot
+    profiles: ["certs"]
+    entrypoint: certbot
+
+networks:
+  beast_net:
+    driver: bridge
+
+volumes:
+  beast_data:
+  beast_content:

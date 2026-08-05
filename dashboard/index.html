@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Beast AI Trading Bot</title>
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Beast AI" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png" />
+  <script src="https://unpkg.com/lightweight-charts@4.2.1/dist/lightweight-charts.standalone.production.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['Syne', 'sans-serif'],
+            mono: ['IBM Plex Mono', 'ui-monospace', 'monospace'],
+          },
+          colors: {
+            ink: '#071018',
+            panel: '#0E1A24',
+            line: '#1E3344',
+            mist: '#9DB4C4',
+            teal: '#2DD4BF',
+            amber: '#F59E0B',
+            rose: '#F43F5E',
+            lime: '#84CC16',
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body class="bg-ink text-slate-100 min-h-screen font-mono antialiased">
+  <div class="atmosphere" aria-hidden="true"></div>
+
+  <div class="app-shell relative z-10">
+    <header class="app-header">
+      <div class="app-header-inner">
+        <div class="brand-block">
+          <p class="brand-kicker">
+            <a href="/" class="hover:text-white">Landing</a>
+            <span class="brand-sep">·</span>
+            <span>Trading Desk</span>
+          </p>
+          <h1 class="font-display brand-title">Beast AI</h1>
+          <p class="brand-sub">
+            Paper trading · Copy routing · Sentiment · Alerts
+          </p>
+        </div>
+
+        <div class="header-actions">
+          <div class="social-links" data-social-links aria-label="Social links"></div>
+          <div id="user-chip" class="user-chip"></div>
+          <button id="btn-logout" type="button" class="action-btn secondary">Log out</button>
+          <button id="btn-connect-exchange" type="button" class="action-btn">
+            Connect Exchange
+          </button>
+          <div class="power-card">
+            <div class="flex items-center gap-2 min-w-0">
+              <span id="status-dot" class="status-dot idle"></span>
+              <div class="min-w-0">
+                <div class="power-label">Bot Status</div>
+                <div id="bot-status-label" class="power-value">IDLE</div>
+              </div>
+            </div>
+            <div class="power-divider" aria-hidden="true"></div>
+            <label class="power-toggle">
+              <span class="power-label">Power</span>
+              <input id="bot-toggle" type="checkbox" class="sr-only peer" />
+              <span class="toggle-track peer-checked:bg-teal/30 peer-checked:border-teal">
+                <span class="toggle-thumb"></span>
+              </span>
+              <span id="toggle-text" class="power-value w-8">OFF</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="app-main">
+
+    <section class="panel mb-6">
+      <div class="panel-head">
+        <h2 class="panel-title">Crypto Watchlist Scanner</h2>
+        <span id="watch-meta" class="panel-meta">Select pairs or scan top volume</span>
+      </div>
+      <div class="px-1 pb-4 grid gap-3">
+        <div class="flex flex-col lg:flex-row gap-3 lg:items-center">
+          <input id="pair-search" type="search" placeholder="Search any USDT pair (e.g. DOGE, PEPE, LINK)" class="watch-input flex-1" />
+          <select id="pair-select" class="watch-input lg:w-72">
+            <option value="">Loading top volume pairs…</option>
+          </select>
+          <button id="btn-add-pair" type="button" class="action-btn">Add Pair</button>
+        </div>
+        <div id="watch-chips" class="flex flex-wrap gap-2"></div>
+        <div class="flex flex-wrap gap-2">
+          <button id="btn-scan-watchlist" type="button" class="action-btn">Scan Watchlist</button>
+          <button id="btn-scan-global" type="button" class="action-btn secondary">Scan Top 50 Global</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+      <article class="stat-card">
+        <div class="stat-label">Total Portfolio Equity</div>
+        <div id="stat-equity" class="stat-value">$—</div>
+        <div id="stat-wallet" class="stat-sub">Wallet $—</div>
+      </article>
+      <article class="stat-card">
+        <div class="stat-label">Active Trades</div>
+        <div id="stat-active" class="stat-value">0</div>
+        <div class="stat-sub">Open paper positions</div>
+      </article>
+      <article class="stat-card">
+        <div class="stat-label">Daily Realized PnL</div>
+        <div id="stat-daily-pnl" class="stat-value">$0.00</div>
+        <div id="stat-realized" class="stat-sub">All-time $0.00</div>
+      </article>
+      <article class="stat-card">
+        <div class="stat-label">Win Rate</div>
+        <div id="stat-winrate" class="stat-value">0%</div>
+        <div id="stat-closed" class="stat-sub">0 closed trades</div>
+      </article>
+    </section>
+
+    <section class="panel mb-6" id="live-chart-panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Live Chart</h2>
+        <div class="flex items-center gap-3 flex-wrap">
+          <select id="chart-symbol" class="watch-input !w-auto !py-1.5 text-sm"></select>
+          <span id="ws-status" class="ws-pill idle">WS connecting…</span>
+          <span id="chart-meta" class="panel-meta">Waiting for stream…</span>
+        </div>
+      </div>
+      <div class="relative px-1 pb-3">
+        <div id="tv-chart" class="tv-chart" aria-label="TradingView lightweight chart"></div>
+        <div id="activity-feed" class="activity-feed" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <section class="panel mb-6" id="subscribe">
+      <div class="panel-head">
+        <h2 class="panel-title">Live Market Sentiment</h2>
+        <span id="sentiment-meta" class="panel-meta">Loading…</span>
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6 items-center px-1 pb-4">
+        <div class="gauge-wrap">
+          <svg viewBox="0 0 120 70" class="gauge-svg" aria-hidden="true">
+            <path d="M10 60 A50 50 0 0 1 110 60" class="gauge-track" />
+            <path id="gauge-value" d="M10 60 A50 50 0 0 1 110 60" class="gauge-value" />
+            <circle id="gauge-needle-cap" cx="60" cy="60" r="4" fill="#2DD4BF" />
+          </svg>
+          <div class="gauge-score">
+            <div id="sentiment-score" class="font-display text-3xl font-extrabold text-white">—</div>
+            <div id="sentiment-label" class="text-xs uppercase tracking-widest text-mist">—</div>
+          </div>
+        </div>
+        <div>
+          <div class="text-sm text-mist mb-3">
+            0 Extreme Fear · 50 Neutral · 100 Extreme Greed. Used as a confluence gate before BUY/SELL execution.
+          </div>
+          <div class="grid grid-cols-3 gap-3 mb-4">
+            <div class="mini-stat">
+              <div class="mini-label">Headlines</div>
+              <div id="sent-headlines" class="mini-value">0</div>
+            </div>
+            <div class="mini-stat">
+              <div class="mini-label">Bullish</div>
+              <div id="sent-bull" class="mini-value text-teal">0</div>
+            </div>
+            <div class="mini-stat">
+              <div class="mini-label">Bearish</div>
+              <div id="sent-bear" class="mini-value text-rose">0</div>
+            </div>
+          </div>
+          <ul id="headline-list" class="headline-list"></ul>
+        </div>
+      </div>
+    </section>
+
+    <div class="tabs mb-4" role="tablist" aria-label="Desk sections">
+      <button class="tab-btn active" data-tab="trading" type="button">Trading</button>
+      <button class="tab-btn" data-tab="copy" type="button">Copy</button>
+      <button class="tab-btn" data-tab="seo" type="button">SEO Feed</button>
+      <button class="tab-btn" data-tab="billing" type="button">Billing</button>
+    </div>
+
+    <section id="tab-trading" class="tab-panel">
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+        <div class="panel">
+          <div class="panel-head">
+            <h2 class="panel-title">Live Scanner</h2>
+            <span id="scan-meta" class="panel-meta">Waiting for data…</span>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table cards-on-mobile">
+              <thead>
+                <tr>
+                  <th>Pair</th>
+                  <th>Price</th>
+                  <th>AI Signal</th>
+                  <th>Confidence</th>
+                </tr>
+              </thead>
+              <tbody id="scanner-body">
+                <tr><td colspan="4" class="empty">Loading markets…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h2 class="panel-title">Active Positions</h2>
+            <span id="pos-meta" class="panel-meta">0 open</span>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table cards-on-mobile">
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th>Side</th>
+                  <th>Entry</th>
+                  <th>Mark</th>
+                  <th>SL</th>
+                  <th>TP</th>
+                  <th>Live PnL</th>
+                </tr>
+              </thead>
+              <tbody id="positions-body">
+                <tr><td colspan="7" class="empty">No open positions</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <section class="panel mb-8">
+        <div class="panel-head">
+          <h2 class="panel-title">Recent Trade History</h2>
+          <span id="history-meta" class="panel-meta">—</span>
+        </div>
+        <div class="table-scroll">
+          <table class="data-table cards-on-mobile">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Pair</th>
+                <th>Side</th>
+                <th>Entry</th>
+                <th>Exit</th>
+                <th>PnL</th>
+                <th>Reason</th>
+              </tr>
+            </thead>
+            <tbody id="history-body">
+              <tr><td colspan="7" class="empty">No closed trades yet</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <section id="tab-copy" class="tab-panel hidden mb-8">
+      <div class="panel">
+        <div class="panel-head">
+          <h2 class="panel-title">Copy Trading Leaderboard</h2>
+          <span id="copy-meta" class="panel-meta">—</span>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 px-1 mb-4">
+          <div class="mini-stat">
+            <div class="mini-label">Followers</div>
+            <div id="copy-followers" class="mini-value">0</div>
+          </div>
+          <div class="mini-stat">
+            <div class="mini-label">Master Commission</div>
+            <div id="copy-commission" class="mini-value">$0.00</div>
+          </div>
+          <div class="mini-stat">
+            <div class="mini-label">Follower Net PnL</div>
+            <div id="copy-follower-pnl" class="mini-value">$0.00</div>
+          </div>
+        </div>
+        <p id="copy-master-line" class="text-sm text-mist px-1 mb-3">No master account linked.</p>
+        <div class="table-scroll">
+          <table class="data-table cards-on-mobile">
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Label</th>
+                <th>Exchange</th>
+                <th>Equity</th>
+                <th>Status</th>
+                <th>Copied</th>
+                <th>Net PnL</th>
+                <th>Master Cut</th>
+              </tr>
+            </thead>
+            <tbody id="copy-body">
+              <tr><td colspan="8" class="empty">No follower accounts yet</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-seo" class="tab-panel hidden mb-8">
+      <div class="panel">
+        <div class="panel-head">
+          <h2 class="panel-title">Auto-SEO Content Feed</h2>
+          <span id="seo-meta" class="panel-meta">—</span>
+        </div>
+        <p class="text-sm text-mist px-1 mb-4">
+          Daily Markdown/HTML articles with JSON-LD schema, target keywords, and internal links to
+          <a class="text-teal underline" href="/pricing">Beast AI subscription</a>.
+        </p>
+        <div id="seo-feed" class="seo-feed px-1 pb-4">
+          <div class="empty">Loading SEO articles…</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-billing" class="tab-panel hidden mb-8">
+      <div class="panel">
+        <div class="panel-head">
+          <h2 class="panel-title">Billing &amp; Subscription</h2>
+          <span id="billing-meta" class="panel-meta">Profile settings</span>
+        </div>
+        <p id="billing-banner" class="hidden text-sm text-teal px-1 mb-3"></p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 px-1 mb-5">
+          <div class="mini-stat">
+            <div class="mini-label">Plan</div>
+            <div id="bill-plan" class="mini-value">—</div>
+          </div>
+          <div class="mini-stat">
+            <div class="mini-label">Status</div>
+            <div id="bill-status" class="mini-value">—</div>
+          </div>
+          <div class="mini-stat">
+            <div class="mini-label">Provider</div>
+            <div id="bill-provider" class="mini-value">—</div>
+          </div>
+          <div class="mini-stat">
+            <div class="mini-label">Expires</div>
+            <div id="bill-expires" class="mini-value text-sm">—</div>
+          </div>
+        </div>
+        <p id="bill-email" class="text-sm text-mist px-1 mb-4">—</p>
+        <p id="bill-pay-mode" class="text-xs text-mist/80 px-1 mb-4">—</p>
+        <div class="flex flex-wrap gap-3 px-1 pb-4">
+          <a href="/pricing" class="action-btn">Subscribe / Upgrade</a>
+          <button type="button" id="btn-manage-billing" class="action-btn secondary">Manage billing (Stripe)</button>
+          <button type="button" id="btn-refresh-billing" class="action-btn secondary">Refresh status</button>
+        </div>
+      </div>
+    </section>
+
+    <footer class="app-footer">
+      <div>Beast AI · Phase 14</div>
+      <div class="social-links" data-social-links aria-label="Social links"></div>
+      <div id="footer-clock">WebSocket live stream</div>
+    </footer>
+    </main>
+  </div>
+
+  <!-- Connect Exchange Modal -->
+  <div id="connect-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-close-modal></div>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="connect-title">
+      <div class="flex items-start justify-between gap-3 mb-4">
+        <div>
+          <h2 id="connect-title" class="font-display text-xl font-bold text-white">Connect Exchange API</h2>
+          <p class="text-xs text-mist mt-1">Keys are encrypted locally with Fernet. Withdrawal permission must be disabled.</p>
+        </div>
+        <button type="button" class="text-mist hover:text-white" data-close-modal aria-label="Close">✕</button>
+      </div>
+      <form id="connect-form" class="grid gap-3">
+        <label class="form-field">
+          <span>Exchange</span>
+          <select id="conn-exchange" required>
+            <option value="binance">Binance</option>
+            <option value="bybit">Bybit</option>
+            <option value="kucoin">KuCoin</option>
+            <option value="okx">OKX</option>
+          </select>
+        </label>
+        <label class="form-field">
+          <span>Label</span>
+          <input id="conn-label" type="text" placeholder="My Bybit Follower" required />
+        </label>
+        <label class="form-field">
+          <span>Role</span>
+          <select id="conn-role">
+            <option value="follower">Follower</option>
+            <option value="master">Master</option>
+          </select>
+        </label>
+        <label class="form-field">
+          <span>API Key</span>
+          <input id="conn-key" type="password" autocomplete="off" required />
+        </label>
+        <label class="form-field">
+          <span>API Secret</span>
+          <input id="conn-secret" type="password" autocomplete="off" required />
+        </label>
+        <label class="form-field">
+          <span>Passphrase (OKX / KuCoin)</span>
+          <input id="conn-passphrase" type="password" autocomplete="off" />
+        </label>
+        <label class="form-field">
+          <span>Equity Hint (USDT)</span>
+          <input id="conn-equity" type="number" min="1" step="0.01" value="1000" />
+        </label>
+        <label class="flex items-center gap-2 text-sm text-mist cursor-pointer">
+          <input id="conn-paper" type="checkbox" checked class="accent-teal" />
+          Paper mode (local demo — skip live exchange validation)
+        </label>
+        <p id="connect-error" class="text-rose text-xs hidden"></p>
+        <p id="connect-success" class="text-teal text-xs hidden"></p>
+        <div class="flex justify-end gap-2 mt-1">
+          <button type="button" class="action-btn secondary" data-close-modal>Cancel</button>
+          <button type="submit" id="connect-submit" class="action-btn">Validate &amp; Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/static/social.js"></script>
+  <script src="/static/charts.js"></script>
+  <script src="/static/app.js"></script>
+  <script src="/static/pwa.js"></script>
+  <script>
+    if (window.BeastSocial) window.BeastSocial.hydrate();
+  </script>
+</body>
+</html>

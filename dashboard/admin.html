@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Beast AI — Super Admin</title>
+  <meta name="theme-color" content="#0f172a" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['Syne', 'sans-serif'],
+            mono: ['IBM Plex Mono', 'ui-monospace', 'monospace'],
+          },
+          colors: {
+            ink: '#0f172a',
+            panel: '#111827',
+            line: '#1f2937',
+            mist: '#94a3b8',
+            teal: '#2DD4BF',
+            amber: '#F59E0B',
+            rose: '#F43F5E',
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="stylesheet" href="/static/admin.css" />
+</head>
+<body class="bg-ink text-slate-100 min-h-screen font-mono antialiased">
+  <div class="admin-atmosphere" aria-hidden="true"></div>
+
+  <div class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-6">
+    <header class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between mb-8">
+      <div>
+        <p class="text-teal tracking-[0.22em] text-xs uppercase mb-2">
+          <a href="/" class="hover:text-white">Landing</a> · Super-Admin Control Center
+        </p>
+        <h1 class="font-display text-4xl font-extrabold tracking-tight">Beast Admin</h1>
+        <p id="admin-meta" class="text-mist text-sm mt-2">Loading dashboard…</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button type="button" id="btn-refresh-admin" class="admin-btn secondary">Refresh</button>
+        <a href="/app" class="admin-btn secondary">Open App</a>
+        <button type="button" id="btn-admin-logout" class="admin-btn">Log out</button>
+      </div>
+    </header>
+
+    <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+      <article class="admin-stat">
+        <div class="label">Total Registered Users</div>
+        <div id="stat-users" class="value">—</div>
+      </article>
+      <article class="admin-stat">
+        <div class="label">Active Paid Subscribers</div>
+        <div id="stat-paid" class="value">—</div>
+      </article>
+      <article class="admin-stat">
+        <div class="label">Total Monthly Revenue</div>
+        <div id="stat-mrr" class="value">$—</div>
+      </article>
+      <article class="admin-stat">
+        <div class="label">Active Copy Traders</div>
+        <div id="stat-copy" class="value">—</div>
+      </article>
+    </section>
+
+    <section class="admin-panel mb-8">
+      <div class="panel-head">
+        <h2>System Health</h2>
+        <div class="flex items-center gap-2">
+          <span id="health-meta" class="panel-meta">Live metrics</span>
+          <button type="button" id="btn-run-backup" class="admin-btn secondary !py-1.5 !px-3 !text-[0.65rem]">Run Backup</button>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <article class="gauge-card">
+          <div class="label">CPU Usage</div>
+          <div class="gauge-ring" id="gauge-cpu" style="--p:0"><span id="health-cpu">—</span></div>
+        </article>
+        <article class="gauge-card">
+          <div class="label">Memory</div>
+          <div class="gauge-ring mem" id="gauge-mem" style="--p:0"><span id="health-mem">—</span></div>
+        </article>
+        <article class="gauge-card">
+          <div class="label">WebSocket Clients</div>
+          <div class="gauge-ring ws" id="gauge-ws" style="--p:0"><span id="health-ws">—</span></div>
+        </article>
+        <article class="gauge-card">
+          <div class="label">DB Latency</div>
+          <div class="gauge-ring db" id="gauge-db" style="--p:0"><span id="health-db">—</span></div>
+        </article>
+      </div>
+      <p id="backup-meta" class="text-xs text-mist mt-4">Backup: —</p>
+    </section>
+
+    <div class="admin-tabs mb-4">
+      <button type="button" class="admin-tab active" data-panel="users">User Database</button>
+      <button type="button" class="admin-tab" data-panel="movements">User Movements</button>
+      <button type="button" class="admin-tab" data-panel="payments">Payments Log</button>
+      <button type="button" class="admin-tab" data-panel="gateways">Payment Gateways</button>
+      <button type="button" class="admin-tab" data-panel="social">Social Links</button>
+      <button type="button" class="admin-tab" data-panel="cms">CMS Editor</button>
+    </div>
+
+    <section id="panel-users" class="admin-panel mb-8">
+      <div class="panel-head">
+        <h2>User Database</h2>
+        <span id="users-meta" class="panel-meta">—</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Name / Email</th>
+              <th>Phone</th>
+              <th>Address</th>
+              <th>Provider</th>
+              <th>Joined</th>
+              <th>Last Login</th>
+              <th>Plan</th>
+              <th>Status</th>
+              <th>Trades</th>
+            </tr>
+          </thead>
+          <tbody id="users-body">
+            <tr><td colspan="9" class="empty">Loading users…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="panel-movements" class="admin-panel mb-8 hidden">
+      <div class="panel-head">
+        <h2>User Movements Log</h2>
+        <span id="movements-meta" class="panel-meta">Every signup, login, logout, social auth</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>User</th>
+              <th>Action</th>
+              <th>Detail</th>
+              <th>IP</th>
+            </tr>
+          </thead>
+          <tbody id="movements-body">
+            <tr><td colspan="5" class="empty">Loading movements…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="panel-payments" class="admin-panel mb-8 hidden">
+      <div class="panel-head">
+        <h2>Payments Log</h2>
+        <span id="payments-meta" class="panel-meta">—</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Amount</th>
+              <th>Gateway</th>
+              <th>Date</th>
+              <th>Status</th>
+              <th>Tier</th>
+            </tr>
+          </thead>
+          <tbody id="payments-body">
+            <tr><td colspan="6" class="empty">Loading payments…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="panel-gateways" class="admin-panel mb-8 hidden">
+      <div class="panel-head">
+        <h2>Payment Gateway Configurator</h2>
+        <span class="panel-meta">Stripe · Crypto USDT</span>
+      </div>
+      <form id="gateways-form" class="cms-grid">
+        <div class="toggle-row">
+          <label class="switch"><input type="checkbox" id="pay-stripe-enabled" /><span></span></label>
+          <span>Enable Stripe (Credit Card)</span>
+        </div>
+        <label><span>Stripe Secret Key</span><input id="pay-stripe-secret" type="password" autocomplete="off" placeholder="sk_live_…" /></label>
+        <label><span>Stripe Webhook Secret</span><input id="pay-stripe-webhook" type="password" autocomplete="off" placeholder="whsec_…" /></label>
+        <div class="cms-prices">
+          <label><span>Price ID Starter</span><input id="pay-price-starter" type="text" placeholder="price_…" /></label>
+          <label><span>Price ID Pro</span><input id="pay-price-pro" type="text" placeholder="price_…" /></label>
+          <label><span>Price ID VIP</span><input id="pay-price-vip" type="text" placeholder="price_…" /></label>
+        </div>
+        <div class="toggle-row">
+          <label class="switch"><input type="checkbox" id="pay-crypto-enabled" /><span></span></label>
+          <span>Enable Crypto (USDT / NOWPayments)</span>
+        </div>
+        <label><span>NOWPayments API Key</span><input id="pay-now-key" type="password" autocomplete="off" /></label>
+        <label><span>NOWPayments IPN Secret</span><input id="pay-now-ipn" type="password" autocomplete="off" /></label>
+        <label><span>USDT TRC20 Wallet</span><input id="pay-usdt-trc20" type="text" placeholder="T…" /></label>
+        <label><span>USDT BEP20 Wallet</span><input id="pay-usdt-bep20" type="text" placeholder="0x…" /></label>
+        <p id="gateways-status" class="text-sm text-mist"></p>
+        <button type="submit" class="admin-btn">Save Payment Settings</button>
+      </form>
+    </section>
+
+    <section id="panel-social" class="admin-panel mb-8 hidden">
+      <div class="panel-head">
+        <h2>Social Links &amp; Navbar</h2>
+        <span class="panel-meta">Rendered on landing, app, pricing</span>
+      </div>
+      <form id="social-form" class="cms-grid">
+        <label><span>Facebook URL</span><input id="social-facebook" type="url" placeholder="https://facebook.com/…" /></label>
+        <label><span>YouTube URL</span><input id="social-youtube" type="url" placeholder="https://youtube.com/…" /></label>
+        <label><span>Instagram URL</span><input id="social-instagram" type="url" placeholder="https://instagram.com/…" /></label>
+        <label><span>LinkedIn URL</span><input id="social-linkedin" type="url" placeholder="https://linkedin.com/…" /></label>
+        <p id="social-status" class="text-sm text-mist"></p>
+        <button type="submit" class="admin-btn">Save Social Links</button>
+      </form>
+    </section>
+
+    <section id="panel-cms" class="admin-panel mb-8 hidden">
+      <div class="panel-head">
+        <h2>CMS &amp; Content Editor</h2>
+        <span id="cms-meta" class="panel-meta">Landing, pricing, SEO</span>
+      </div>
+      <form id="cms-form" class="cms-grid">
+        <label>
+          <span>Meta Title</span>
+          <input id="cms-meta-title" type="text" />
+        </label>
+        <label>
+          <span>Meta Description</span>
+          <textarea id="cms-meta-desc" rows="2"></textarea>
+        </label>
+        <label>
+          <span>Hero Title</span>
+          <input id="cms-hero-headline" type="text" />
+        </label>
+        <label>
+          <span>Hero Subtitle</span>
+          <textarea id="cms-hero-sub" rows="2"></textarea>
+        </label>
+        <label>
+          <span>Banner Video URL (mp4/webm — leave blank for SVG demo)</span>
+          <input id="cms-hero-video" type="url" placeholder="https://…/feature-15s.mp4" />
+        </label>
+        <div class="cms-prices">
+          <label><span>CTA Primary</span><input id="cms-cta-primary" type="text" /></label>
+          <label><span>CTA Secondary</span><input id="cms-cta-secondary" type="text" /></label>
+        </div>
+        <div class="cms-prices">
+          <label><span>Starter $/mo</span><input id="cms-price-starter" type="number" min="0" step="1" /></label>
+          <label><span>Pro $/mo</span><input id="cms-price-pro" type="number" min="0" step="1" /></label>
+          <label><span>VIP $/mo</span><input id="cms-price-vip" type="number" min="0" step="1" /></label>
+        </div>
+
+        <div class="crud-block">
+          <div class="crud-head">
+            <h3>Feature Cards</h3>
+            <button type="button" class="admin-btn secondary" data-add-list="features">+ Add</button>
+          </div>
+          <div id="cms-features-list" class="crud-list"></div>
+        </div>
+        <div class="crud-block">
+          <div class="crud-head">
+            <h3>Testimonials</h3>
+            <button type="button" class="admin-btn secondary" data-add-list="testimonials">+ Add</button>
+          </div>
+          <div id="cms-testimonials-list" class="crud-list"></div>
+        </div>
+        <div class="crud-block">
+          <div class="crud-head">
+            <h3>FAQ Items</h3>
+            <button type="button" class="admin-btn secondary" data-add-list="faq">+ Add</button>
+          </div>
+          <div id="cms-faq-list" class="crud-list"></div>
+        </div>
+
+        <label>
+          <span>Risk Disclaimer</span>
+          <textarea id="cms-risk" rows="3"></textarea>
+        </label>
+        <label>
+          <span>Terms of Service</span>
+          <textarea id="cms-terms" rows="4"></textarea>
+        </label>
+        <p id="cms-status" class="text-sm text-mist"></p>
+        <div class="flex gap-2">
+          <button type="submit" class="admin-btn">Save CMS Content</button>
+          <button type="button" id="btn-reload-cms" class="admin-btn secondary">Reload</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <script src="/static/admin.js"></script>
+</body>
+</html>

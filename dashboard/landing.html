@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Beast AI — Automated Futures Trading SaaS</title>
+  <meta name="description" content="Beast AI Trading Bot: multi-exchange futures automation, copy trading, sentiment filters, and risk-first execution." />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Beast AI" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['Fraunces', 'Georgia', 'serif'],
+            sans: ['Manrope', 'sans-serif'],
+            mono: ['IBM Plex Mono', 'monospace'],
+          },
+          colors: {
+            ink: '#061017',
+            fog: '#9BB0BF',
+            teal: '#2DD4BF',
+            sand: '#E7C08A',
+            panel: '#0C1822',
+            line: '#1B3142',
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="stylesheet" href="/static/landing.css" />
+</head>
+<body class="bg-ink text-white font-sans antialiased">
+  <div class="noise" aria-hidden="true"></div>
+
+  <header class="site-header relative z-20">
+    <div class="site-header-inner">
+      <a href="/" class="brand-mark font-display">Beast AI</a>
+      <button type="button" class="nav-toggle" id="nav-toggle" aria-label="Open menu" aria-expanded="false">
+        <span></span><span></span>
+      </button>
+      <nav class="site-nav" id="site-nav">
+        <a href="#services">Services</a>
+        <a href="#roi">ROI</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#reviews">Reviews</a>
+        <a href="#faq">FAQ</a>
+        <div class="social-links" data-social-links aria-label="Social links"></div>
+        <button type="button" id="btn-login" class="nav-link-btn">Log In</button>
+        <button type="button" id="btn-signup" class="cta-primary nav-cta">Sign Up</button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="relative z-10 hero-section">
+    <div class="hero-glow" aria-hidden="true"></div>
+    <div class="hero-copy">
+      <p id="hero-brand" class="hero-brand font-display reveal">Beast AI</p>
+      <h1 id="hero-headline" class="hero-headline reveal delay-1">
+        Futures automation that sizes risk before it chases alpha.
+      </h1>
+      <p id="hero-subheadline" class="hero-sub reveal delay-2">
+        Multi-exchange signals, copy trading, and Telegram alerts — paper-trade first, go live when ready.
+      </p>
+      <div class="hero-actions reveal delay-3">
+        <button type="button" id="btn-trial" class="cta-primary">Start 7-Day Free Trial</button>
+        <button type="button" id="btn-launch" class="cta-secondary">Launch Dashboard</button>
+      </div>
+    </div>
+
+    <div class="relative mt-10 sm:mt-14 flex-1 hero-stage">
+      <div class="hero-plane" aria-hidden="true"></div>
+      <div class="hero-media">
+        <video
+          id="hero-video"
+          class="hero-video hidden"
+          muted
+          autoplay
+          loop
+          playsinline
+          preload="metadata"
+          aria-label="15-second platform feature preview"
+        ></video>
+        <div id="hero-svg-demo" class="preview-3d" aria-label="Beast AI 15-second dashboard feature demo">
+          <div class="preview-card">
+            <div class="preview-top">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+              <span class="preview-brand">Beast AI · 15s Feature Preview</span>
+              <span class="preview-timer" aria-hidden="true">00:15</span>
+            </div>
+            <div class="preview-grid">
+              <div>
+                <div class="preview-label">Equity</div>
+                <div class="preview-value" id="hero-equity">$128,440</div>
+              </div>
+              <div>
+                <div class="preview-label">Win Rate</div>
+                <div class="preview-value teal" id="hero-winrate">71.4%</div>
+              </div>
+              <div>
+                <div class="preview-label">Signal</div>
+                <div class="preview-value sand" id="hero-signal">BTC LONG</div>
+              </div>
+              <div>
+                <div class="preview-label">Sentiment</div>
+                <div class="preview-value" id="hero-sentiment">58 Neutral</div>
+              </div>
+            </div>
+            <div class="preview-chart">
+              <svg viewBox="0 0 320 80" preserveAspectRatio="none" class="demo-svg">
+                <defs>
+                  <linearGradient id="demoFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="rgba(45,212,191,0.35)" />
+                    <stop offset="100%" stop-color="rgba(45,212,191,0)" />
+                  </linearGradient>
+                </defs>
+                <path class="chart-area" d="M0,70 C40,55 60,25 100,32 C140,40 160,68 200,48 C240,28 280,34 320,20 L320,80 L0,80 Z" />
+                <path class="chart-line demo-draw" d="M0,60 C40,55 60,20 100,28 C140,36 160,70 200,46 C240,22 280,30 320,18" />
+                <circle class="demo-pulse" cx="200" cy="46" r="4" />
+              </svg>
+            </div>
+            <div class="demo-ticker" aria-hidden="true">
+              <span>SCAN BTCUSDT</span>
+              <span>RISK OK</span>
+              <span>COPY ROUTING</span>
+              <span>TG ALERT SENT</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="services" class="relative z-10 max-w-6xl mx-auto px-5 py-20">
+    <div class="section-kicker">Services</div>
+    <h2 class="font-display text-3xl sm:text-5xl max-w-2xl leading-tight">Everything a modern futures desk needs in one control plane.</h2>
+    <div id="services-grid" class="mt-10 grid grid-cols-1 md:grid-cols-3 gap-5">
+      <!-- filled by CMS / defaults in landing.js -->
+    </div>
+    <div id="features-grid" class="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+  </section>
+
+  <section id="roi" class="relative z-10 max-w-6xl mx-auto px-5 py-16">
+    <div class="section-kicker">Interactive ROI Calculator</div>
+    <h2 class="font-display text-3xl sm:text-4xl max-w-xl leading-tight">Model paper-desk outcomes before you subscribe.</h2>
+    <div class="roi-card mt-8">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <label class="form-field">
+          <span>Starting Capital (USDT)</span>
+          <input id="roi-capital" type="number" min="100" step="100" value="5000" />
+        </label>
+        <label class="form-field">
+          <span>Monthly Win Rate (%)</span>
+          <input id="roi-winrate" type="number" min="1" max="95" step="1" value="62" />
+        </label>
+        <label class="form-field">
+          <span>Avg Trade Edge (%)</span>
+          <input id="roi-edge" type="number" min="0.1" max="20" step="0.1" value="1.8" />
+        </label>
+      </div>
+      <div class="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="metric">
+          <div class="metric-label">Est. 30D Return</div>
+          <div id="roi-month" class="metric-value">—</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Est. 90D Equity</div>
+          <div id="roi-quarter" class="metric-value">—</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Plan Payback</div>
+          <div id="roi-payback" class="metric-value">—</div>
+        </div>
+      </div>
+      <p class="mt-3 text-xs text-fog">Illustrative only. Uses your inputs with conservative compounding assumptions — not a performance guarantee.</p>
+    </div>
+  </section>
+
+  <section id="performance" class="relative z-10 max-w-6xl mx-auto px-5 py-20">
+    <div class="section-kicker">Live Performance Showcase</div>
+    <h2 class="font-display text-3xl sm:text-5xl max-w-2xl leading-tight">Simulated desk metrics updating from the paper engine.</h2>
+    <div class="mt-10 grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <article class="metric">
+        <div class="metric-label">30D Win Rate</div>
+        <div class="metric-value" id="perf-winrate">71.4%</div>
+      </article>
+      <article class="metric">
+        <div class="metric-label">Paper PnL (30D)</div>
+        <div class="metric-value" id="perf-pnl">+$18,920</div>
+      </article>
+      <article class="metric">
+        <div class="metric-label">Avg Confidence</div>
+        <div class="metric-value" id="perf-conf">76%</div>
+      </article>
+      <article class="metric">
+        <div class="metric-label">Active Strategies</div>
+        <div class="metric-value">RSI · EMA · MACD</div>
+      </article>
+    </div>
+    <p class="mt-4 text-sm text-fog">Showcase figures blend live portfolio snapshots with realistic demo baselines for marketing preview.</p>
+  </section>
+
+  <section id="pricing" class="relative z-10 max-w-6xl mx-auto px-5 py-20">
+    <div class="section-kicker">Pricing</div>
+    <h2 class="font-display text-3xl sm:text-5xl max-w-xl leading-tight">Choose the desk that matches your scale.</h2>
+    <div class="mt-6 flex flex-wrap items-center gap-3">
+      <span class="text-xs uppercase tracking-widest text-fog">Pay with</span>
+      <div class="pay-toggle" role="group" aria-label="Payment method">
+        <button type="button" class="pay-opt active" data-method="stripe" id="land-pay-stripe">Credit Card (Stripe)</button>
+        <button type="button" class="pay-opt" data-method="crypto" id="land-pay-crypto">Pay with Crypto (USDT)</button>
+      </div>
+      <a href="/pricing" class="text-sm text-teal underline">Full checkout page</a>
+    </div>
+    <p id="land-pay-hint" class="mt-2 text-sm text-fog">Select a plan to open Stripe or USDT checkout.</p>
+    <div id="pricing-grid" class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-5">
+      <!-- filled by landing.js -->
+    </div>
+  </section>
+
+  <section id="reviews" class="relative z-10 max-w-6xl mx-auto px-5 py-16">
+    <div class="section-kicker">Social Proof</div>
+    <h2 class="font-display text-3xl sm:text-4xl mb-8">Operators who stopped babysitting charts.</h2>
+    <div class="trust-row mb-8">
+      <div class="trustpilot" id="trustpilot-widget">
+        <div class="tp-mark">
+          <div class="stars" aria-hidden="true">★★★★★</div>
+          <div class="tp-score" id="tp-score">4.8</div>
+        </div>
+        <div>
+          <div class="font-semibold" id="tp-label">Excellent on Trustpilot</div>
+          <div class="text-sm text-fog" id="tp-count">Based on 214 verified reviews (demo widget)</div>
+          <div class="tp-bars" aria-hidden="true">
+            <span style="--w:92%"></span><span style="--w:6%"></span><span style="--w:2%"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="reviews-grid" class="grid grid-cols-1 md:grid-cols-3 gap-5"></div>
+  </section>
+
+  <section id="risk" class="relative z-10 max-w-4xl mx-auto px-5 py-14">
+    <div class="section-kicker">Risk Disclaimer</div>
+    <div class="risk-box">
+      <p id="risk-disclaimer-text">
+        Trading futures and crypto involves substantial risk of loss and is not suitable for every investor.
+      </p>
+      <button type="button" id="btn-tos" class="mt-4 text-sm text-teal underline">Read Terms of Service</button>
+    </div>
+  </section>
+
+  <section id="faq" class="relative z-10 max-w-3xl mx-auto px-5 py-20">
+    <div class="section-kicker">FAQ</div>
+    <h2 class="font-display text-3xl sm:text-4xl mb-8">Questions before you arm the bot.</h2>
+    <div class="faq" id="faq-list"></div>
+  </section>
+
+  <footer class="relative z-10 border-t border-line">
+    <div class="max-w-6xl mx-auto px-5 py-8 flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between text-sm text-fog">
+      <div class="font-display text-white text-lg">Beast AI</div>
+      <div class="social-links" data-social-links aria-label="Social links"></div>
+      <div>
+        © 2026 Beast AI Trading Bot ·
+        <a class="text-teal" href="/app">Open App</a> ·
+        <a class="text-teal" href="/admin">Admin</a> ·
+        <button type="button" id="btn-tos-footer" class="text-teal underline">Terms</button> ·
+        <a class="text-teal" href="/docs">API Docs</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Terms Modal -->
+  <div id="tos-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-close-tos></div>
+    <div class="modal-card max-w-xl" role="dialog" aria-modal="true" aria-labelledby="tos-title">
+      <div class="flex items-start justify-between gap-3 mb-4">
+        <h2 id="tos-title" class="font-display text-2xl font-bold">Terms of Service</h2>
+        <button type="button" class="text-fog hover:text-white" data-close-tos aria-label="Close">✕</button>
+      </div>
+      <div id="tos-body" class="text-sm text-fog leading-relaxed whitespace-pre-wrap max-h-[50vh] overflow-y-auto"></div>
+      <button type="button" class="cta-primary w-full mt-5" data-close-tos>I Understand</button>
+    </div>
+  </div>
+
+  <!-- Auth Modal — X-style clean auth -->
+  <div id="auth-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-close-auth></div>
+    <div class="modal-card auth-card" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+      <button type="button" class="auth-close" data-close-auth aria-label="Close">←</button>
+
+      <div class="auth-brand" aria-hidden="true">
+        <span class="auth-mark">B</span>
+      </div>
+      <h2 id="auth-title" class="auth-title">See what’s trading</h2>
+      <p id="auth-subtitle" class="auth-sub">Create your Beast AI desk · 7-day Pro trial</p>
+
+      <div class="auth-mode-row" role="tablist">
+        <button type="button" class="auth-tab active" data-auth-tab="signup">Sign up</button>
+        <button type="button" class="auth-tab" data-auth-tab="login">Log in</button>
+      </div>
+
+      <div class="oauth-block" aria-label="Social login">
+        <div class="oauth-primary">
+          <button type="button" class="oauth-pill" data-oauth="google" aria-label="Continue with Google">
+            <span class="oauth-ico" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path fill="#EA4335" d="M12 10.2v3.9h5.5c-.2 1.3-1.6 3.8-5.5 3.8-3.3 0-6-2.7-6-6s2.7-6 6-6c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.9 3.3 14.7 2.3 12 2.3 6.9 2.3 2.8 6.4 2.8 11.5S6.9 20.7 12 20.7c5.2 0 8.6-3.6 8.6-8.7 0-.6-.1-1-.2-1.5H12z"/><path fill="#FBBC05" d="M6.9 14.9c-.4-1-.6-2.1-.6-3.2s.2-2.2.6-3.2L3.8 6.1C2.9 7.7 2.4 9.5 2.4 11.5s.5 3.8 1.4 5.4l3.1-2z"/><path fill="#34A853" d="M12 20.7c2.3 0 4.3-.8 5.7-2.1l-2.8-2.2c-.8.5-1.8.9-2.9.9-2.2 0-4.1-1.5-4.8-3.5L4.1 16c1.5 3 4.4 4.7 7.9 4.7z"/><path fill="#4285F4" d="M20.6 12c0-.6-.1-1-.2-1.5H12v3.9h5.5c-.3 1.3-1.1 2.3-2.2 3l2.8 2.2c1.7-1.5 2.5-3.8 2.5-6.6z"/></svg>
+            </span>
+            Continue with Google
+          </button>
+          <button type="button" class="oauth-pill" data-oauth="apple" aria-label="Continue with Apple">
+            <span class="oauth-ico dark" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path fill="currentColor" d="M16.4 12.6c0-2.1 1.7-3.1 1.8-3.2-1-1.4-2.5-1.6-3.1-1.6-1.3-.1-2.5.8-3.2.8-.7 0-1.7-.7-2.8-.7-1.4 0-2.8.9-3.5 2.2-1.5 2.6-.4 6.4 1.1 8.5.7 1 1.6 2.1 2.7 2.1 1.1 0 1.5-.7 2.8-.7s1.7.7 2.8.7c1.2 0 1.9-1 2.6-2 .8-1.2 1.1-2.3 1.2-2.4-.1 0-2.2-.8-2.2-3.3zm-2-6.2c.6-.7 1-1.7.9-2.7-.9 0-1.9.6-2.5 1.3-.6.6-1.1 1.7-.9 2.6 1 .1 1.9-.5 2.5-1.2z"/></svg>
+            </span>
+            Continue with Apple
+          </button>
+          <button type="button" class="oauth-pill" data-oauth="facebook" aria-label="Continue with Facebook">
+            <span class="oauth-ico fb" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path fill="#1877F2" d="M24 12.1C24 5.4 18.6 0 12 0S0 5.4 0 12.1C0 18.1 4.4 23.1 10.1 24v-8.4H7.1v-3.5h3V9.4c0-3 1.8-4.6 4.5-4.6 1.3 0 2.6.2 2.6.2v2.9h-1.5c-1.5 0-1.9.9-1.9 1.8v2.2h3.3l-.5 3.5h-2.8V24C19.6 23.1 24 18.1 24 12.1z"/></svg>
+            </span>
+            Continue with Facebook
+          </button>
+        </div>
+
+        <button type="button" class="oauth-other-toggle" id="oauth-other-toggle" aria-expanded="false">
+          <span id="oauth-other-label">Other</span>
+          <span class="oauth-caret" aria-hidden="true">▾</span>
+        </button>
+        <div id="oauth-other" class="oauth-other hidden">
+          <button type="button" class="oauth-pill compact" data-oauth="twitter">
+            <span class="oauth-ico dark" aria-hidden="true"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M18.2 2H21l-6.5 7.4L22 22h-6.8l-4.7-6.1L5.3 22H2.5l7-8L2 2h7l4.2 5.6L18.2 2zm-1.2 18h1.9L7.1 3.9H5.1L17 20z"/></svg></span>
+            Continue with X
+          </button>
+          <button type="button" class="oauth-pill compact" data-oauth="yahoo">
+            <span class="oauth-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path fill="#6001D2" d="M12.9 2h3.4L12 11.2 16.8 22h-3.5l-3-6.7L7 22H3.6l4.9-10.8L4.3 2h3.5l2.7 6.3L12.9 2z"/></svg></span>
+            Continue with Yahoo
+          </button>
+          <button type="button" class="oauth-pill compact" data-oauth="outlook">
+            <span class="oauth-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path fill="#0078D4" d="M13.5 4.5h7A1.5 1.5 0 0 1 22 6v12a1.5 1.5 0 0 1-1.5 1.5h-7V4.5z"/><path fill="#0364B8" d="M2.5 7.2A1.7 1.7 0 0 1 4.2 5.5h10.1v13H4.2a1.7 1.7 0 0 1-1.7-1.7V7.2z"/><path fill="#fff" d="M9.2 15.8c-2.2 0-3.7-1.6-3.7-3.8s1.5-3.8 3.7-3.8 3.7 1.6 3.7 3.8-1.5 3.8-3.7 3.8zm0-5.9c-1.1 0-1.8.9-1.8 2.1s.7 2.1 1.8 2.1 1.8-.9 1.8-2.1-.7-2.1-1.8-2.1z"/></svg></span>
+            Continue with Outlook
+          </button>
+        </div>
+      </div>
+
+      <div class="auth-or"><span>or</span></div>
+
+      <form id="auth-form" class="auth-form">
+        <div id="signup-extra" class="auth-form-extra">
+          <label class="auth-field">
+            <span>Full name</span>
+            <input id="auth-fullname" type="text" autocomplete="name" placeholder="Full name" />
+          </label>
+          <div class="auth-row">
+            <label class="auth-field">
+              <span>Phone</span>
+              <input id="auth-phone" type="tel" autocomplete="tel" placeholder="Phone number" />
+            </label>
+            <label class="auth-field">
+              <span>Country</span>
+              <input id="auth-country" type="text" autocomplete="country-name" placeholder="Country" />
+            </label>
+          </div>
+          <label class="auth-field">
+            <span>Address</span>
+            <input id="auth-address" type="text" autocomplete="street-address" placeholder="Address" />
+          </label>
+        </div>
+        <label class="auth-field">
+          <span>Email</span>
+          <input id="auth-email" type="email" required autocomplete="email" placeholder="Email" />
+        </label>
+        <div class="auth-row" id="password-row">
+          <label class="auth-field">
+            <span>Password</span>
+            <input id="auth-password" type="password" minlength="8" required autocomplete="new-password" placeholder="Password" />
+          </label>
+          <label class="auth-field" id="confirm-wrap">
+            <span>Confirm</span>
+            <input id="auth-confirm" type="password" minlength="8" autocomplete="new-password" placeholder="Confirm password" />
+          </label>
+        </div>
+        <p id="auth-error" class="auth-error hidden"></p>
+        <button type="submit" id="auth-submit" class="auth-continue">Create account</button>
+      </form>
+
+      <p class="auth-legal">
+        By continuing, you agree to our
+        <button type="button" id="btn-tos-auth" class="auth-legal-link">Terms of Service</button>
+        and acknowledge the risk disclaimer.
+      </p>
+    </div>
+  </div>
+
+  <script src="/static/social.js"></script>
+  <script src="/static/landing.js"></script>
+  <script src="/static/pwa.js"></script>
+</body>
+</html>

@@ -1,0 +1,317 @@
+.admin-atmosphere {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(800px 360px at 10% -10%, rgba(45, 212, 191, 0.14), transparent 55%),
+    radial-gradient(700px 320px at 90% 0%, rgba(245, 158, 11, 0.08), transparent 50%),
+    linear-gradient(180deg, #0f172a 0%, #0b1220 45%, #070b14 100%);
+}
+
+.admin-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(45, 212, 191, 0.45);
+  background: rgba(45, 212, 191, 0.16);
+  color: #fff;
+  border-radius: 0.7rem;
+  padding: 0.55rem 0.95rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.admin-btn.secondary {
+  background: rgba(17, 24, 39, 0.8);
+  border-color: #1f2937;
+  color: #94a3b8;
+}
+
+.admin-stat {
+  background: rgba(17, 24, 39, 0.9);
+  border: 1px solid #1f2937;
+  border-radius: 1rem;
+  padding: 1.1rem 1.2rem;
+}
+
+.admin-stat .label {
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin-bottom: 0.55rem;
+}
+
+.admin-stat .value {
+  font-family: Syne, sans-serif;
+  font-size: 1.85rem;
+  font-weight: 800;
+  color: #fff;
+}
+
+.admin-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.admin-tab {
+  border: 1px solid #1f2937;
+  background: rgba(17, 24, 39, 0.75);
+  color: #94a3b8;
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.admin-tab.active {
+  color: #0f172a;
+  background: #2dd4bf;
+  border-color: #2dd4bf;
+}
+
+.admin-panel {
+  background: rgba(17, 24, 39, 0.92);
+  border: 1px solid #1f2937;
+  border-radius: 1rem;
+  padding: 1rem;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.panel-head h2 {
+  font-family: Syne, sans-serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.panel-meta {
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.admin-table th {
+  text-align: left;
+  color: #94a3b8;
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.55rem 0.45rem;
+  border-bottom: 1px solid #1f2937;
+}
+
+.admin-table td {
+  padding: 0.65rem 0.45rem;
+  border-bottom: 1px solid rgba(31, 41, 55, 0.8);
+  color: #e2e8f0;
+}
+
+.admin-table .empty {
+  text-align: center;
+  color: #64748b;
+  padding: 1.5rem;
+}
+
+.badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.badge-active { background: rgba(45, 212, 191, 0.18); color: #2dd4bf; }
+.badge-trialing { background: rgba(245, 158, 11, 0.16); color: #f59e0b; }
+.badge-canceled { background: rgba(244, 63, 94, 0.16); color: #f43f5e; }
+
+.cms-grid {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.cms-grid label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.cms-grid input,
+.cms-grid textarea {
+  width: 100%;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid #1f2937;
+  border-radius: 0.7rem;
+  color: #fff;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.85rem;
+}
+
+.cms-prices {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+@media (max-width: 720px) {
+  .cms-prices {
+    grid-template-columns: 1fr;
+  }
+}
+
+.gauge-card {
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid #1f2937;
+  border-radius: 0.9rem;
+  padding: 0.9rem;
+  text-align: center;
+}
+
+.gauge-card .label {
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin-bottom: 0.7rem;
+}
+
+.gauge-ring {
+  --p: 0;
+  width: 108px;
+  height: 108px;
+  margin: 0 auto;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at center, rgba(17, 24, 39, 1) 58%, transparent 59%),
+    conic-gradient(#2dd4bf calc(var(--p) * 1%), rgba(31, 41, 55, 0.95) 0);
+  font-family: Syne, sans-serif;
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: #fff;
+}
+
+.gauge-ring.mem {
+  background:
+    radial-gradient(circle at center, rgba(17, 24, 39, 1) 58%, transparent 59%),
+    conic-gradient(#f59e0b calc(var(--p) * 1%), rgba(31, 41, 55, 0.95) 0);
+}
+
+.gauge-ring.ws {
+  background:
+    radial-gradient(circle at center, rgba(17, 24, 39, 1) 58%, transparent 59%),
+    conic-gradient(#38bdf8 calc(var(--p) * 1%), rgba(31, 41, 55, 0.95) 0);
+}
+
+.gauge-ring.db {
+  background:
+    radial-gradient(circle at center, rgba(17, 24, 39, 1) 58%, transparent 59%),
+    conic-gradient(#a78bfa calc(var(--p) * 1%), rgba(31, 41, 55, 0.95) 0);
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #e2e8f0;
+  font-size: 0.85rem;
+}
+
+.switch {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  display: inline-block;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switch span {
+  position: absolute;
+  inset: 0;
+  background: #1f2937;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.switch span::before {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  left: 3px;
+  top: 3px;
+  border-radius: 999px;
+  background: #94a3b8;
+  transition: 0.2s ease;
+}
+
+.switch input:checked + span {
+  background: rgba(45, 212, 191, 0.35);
+}
+
+.switch input:checked + span::before {
+  transform: translateX(20px);
+  background: #2dd4bf;
+}
+
+.crud-block {
+  border: 1px solid #1f2937;
+  border-radius: 0.9rem;
+  padding: 0.85rem;
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.crud-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.7rem;
+}
+
+.crud-head h3 {
+  font-family: Syne, sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.crud-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.crud-item {
+  display: grid;
+  gap: 0.45rem;
+  border: 1px solid #1f2937;
+  border-radius: 0.75rem;
+  padding: 0.7rem;
+  background: rgba(17, 24, 39, 0.8);
+}
+
+.crud-item .crud-actions {
+  display: flex;
+  justify-content: flex-end;
+}
