@@ -11,7 +11,7 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png" />
-  <script src="https://unpkg.com/lightweight-charts@4.2.1/dist/lightweight-charts.standalone.production.js"></script>
+  <script src="https://s3.tradingview.com/tv.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -45,8 +45,8 @@
 
   <div class="app-shell relative z-10">
     <header class="app-header">
-      <div class="app-header-inner">
-        <div class="brand-block">
+      <div class="app-header-inner flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+        <div class="brand-block min-w-0">
           <p class="brand-kicker">
             <a href="/" class="hover:text-white">Landing</a>
             <span class="brand-sep">·</span>
@@ -58,14 +58,16 @@
           </p>
         </div>
 
-        <div class="header-actions">
-          <div class="social-links" data-social-links aria-label="Social links"></div>
-          <div id="user-chip" class="user-chip"></div>
-          <button id="btn-logout" type="button" class="action-btn secondary">Log out</button>
-          <button id="btn-connect-exchange" type="button" class="action-btn">
-            Connect Exchange
-          </button>
-          <div class="power-card">
+        <div class="header-actions flex flex-col sm:flex-row sm:flex-wrap md:justify-end items-stretch sm:items-center gap-2 sm:gap-3 w-full md:w-auto md:max-w-xl">
+          <div class="social-links hidden sm:flex" data-social-links aria-label="Social links"></div>
+          <div id="user-chip" class="user-chip order-1"></div>
+          <div class="flex flex-row gap-2 order-3 sm:order-2 w-full sm:w-auto">
+            <button id="btn-logout" type="button" class="action-btn secondary flex-1 sm:flex-none">Log out</button>
+            <button id="btn-connect-exchange" type="button" class="action-btn flex-1 sm:flex-none">
+              Connect Exchange
+            </button>
+          </div>
+          <div class="power-card order-2 sm:order-3 w-full sm:w-auto">
             <div class="flex items-center gap-2 min-w-0">
               <span id="status-dot" class="status-dot idle"></span>
               <div class="min-w-0">
@@ -95,22 +97,22 @@
         <span id="watch-meta" class="panel-meta">Select pairs or scan top volume</span>
       </div>
       <div class="px-1 pb-4 grid gap-3">
-        <div class="flex flex-col lg:flex-row gap-3 lg:items-center">
-          <input id="pair-search" type="search" placeholder="Search any USDT pair (e.g. DOGE, PEPE, LINK)" class="watch-input flex-1" />
-          <select id="pair-select" class="watch-input lg:w-72">
+        <div class="flex flex-col gap-3 md:flex-row md:items-center">
+          <input id="pair-search" type="search" placeholder="Search any USDT pair (e.g. DOGE, PEPE, LINK)" class="watch-input w-full flex-1" />
+          <select id="pair-select" class="watch-input w-full md:w-72">
             <option value="">Loading top volume pairs…</option>
           </select>
-          <button id="btn-add-pair" type="button" class="action-btn">Add Pair</button>
+          <button id="btn-add-pair" type="button" class="action-btn w-full md:w-auto">Add Pair</button>
         </div>
         <div id="watch-chips" class="flex flex-wrap gap-2"></div>
-        <div class="flex flex-wrap gap-2">
+        <div class="flex flex-col sm:flex-row flex-wrap gap-2">
           <button id="btn-scan-watchlist" type="button" class="action-btn">Scan Watchlist</button>
           <button id="btn-scan-global" type="button" class="action-btn secondary">Scan Top 50 Global</button>
         </div>
       </div>
     </section>
 
-    <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+    <section class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       <article class="stat-card">
         <div class="stat-label">Total Portfolio Equity</div>
         <div id="stat-equity" class="stat-value">$—</div>
@@ -143,7 +145,7 @@
         </div>
       </div>
       <div class="relative px-1 pb-3">
-        <div id="tv-chart" class="tv-chart" aria-label="TradingView lightweight chart"></div>
+        <div id="tv-chart" class="tv-chart h-[350px] md:h-[500px]" aria-label="TradingView chart"></div>
         <div id="activity-feed" class="activity-feed" aria-live="polite"></div>
       </div>
     </section>
@@ -153,8 +155,8 @@
         <h2 class="panel-title">Live Market Sentiment</h2>
         <span id="sentiment-meta" class="panel-meta">Loading…</span>
       </div>
-      <div class="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6 items-center px-1 pb-4">
-        <div class="gauge-wrap">
+      <div class="flex flex-col lg:flex-row gap-6 items-center lg:items-stretch px-1 pb-4">
+        <div class="gauge-wrap shrink-0">
           <svg viewBox="0 0 120 70" class="gauge-svg" aria-hidden="true">
             <path d="M10 60 A50 50 0 0 1 110 60" class="gauge-track" />
             <path id="gauge-value" d="M10 60 A50 50 0 0 1 110 60" class="gauge-value" />
@@ -165,7 +167,7 @@
             <div id="sentiment-label" class="text-xs uppercase tracking-widest text-mist">—</div>
           </div>
         </div>
-        <div>
+        <div class="w-full min-w-0">
           <div class="text-sm text-mist mb-3">
             0 Extreme Fear · 50 Neutral · 100 Extreme Greed. Used as a confluence gate before BUY/SELL execution.
           </div>
@@ -202,7 +204,7 @@
             <h2 class="panel-title">Live Scanner</h2>
             <span id="scan-meta" class="panel-meta">Waiting for data…</span>
           </div>
-          <div class="table-scroll">
+          <div class="table-scroll overflow-x-auto">
             <table class="data-table cards-on-mobile">
               <thead>
                 <tr>
@@ -224,7 +226,7 @@
             <h2 class="panel-title">Active Positions</h2>
             <span id="pos-meta" class="panel-meta">0 open</span>
           </div>
-          <div class="table-scroll">
+          <div class="table-scroll overflow-x-auto">
             <table class="data-table cards-on-mobile">
               <thead>
                 <tr>
@@ -245,12 +247,12 @@
         </div>
       </div>
 
-      <section class="panel mb-8">
+      <section class="panel mb-8 panel-with-pwa-pad">
         <div class="panel-head">
           <h2 class="panel-title">Recent Trade History</h2>
           <span id="history-meta" class="panel-meta">—</span>
         </div>
-        <div class="table-scroll">
+        <div class="table-scroll overflow-x-auto">
           <table class="data-table cards-on-mobile">
             <thead>
               <tr>

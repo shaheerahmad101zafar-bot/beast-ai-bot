@@ -143,11 +143,17 @@ async def lifespan(app: FastAPI):
     await asyncio.to_thread(sentiment_engine.get_sentiment)
     await asyncio.to_thread(billing.refresh_status)
     try:
-        await asyncio.to_thread(market_scanner.fetch_top_usdt_pairs, 120, False)
+        # Instant seed universe first; live ranking refreshes below.
+        await asyncio.to_thread(market_scanner.fetch_top_usdt_pairs, 50, False)
     except Exception:
         pass
     await ws_hub.start()
     await backup_engine.start()
+    # Upgrade seeded top-50 pairs to live Binance volume ranking in background.
+    try:
+        await asyncio.to_thread(market_scanner.refresh_live_universe)
+    except Exception:
+        pass
     if config.BOT_AUTO_START:
         await asyncio.to_thread(bot_service.refresh_scan_once)
         await bot_service.start()

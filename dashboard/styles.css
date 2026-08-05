@@ -40,7 +40,7 @@ canvas {
   padding:
     calc(var(--shell-pad) + var(--safe-top))
     var(--shell-pad)
-    calc(1.25rem + var(--safe-bottom));
+    calc(6.5rem + var(--safe-bottom));
 }
 
 .app-header {
@@ -272,11 +272,15 @@ canvas {
   padding-bottom: 0.35rem;
 }
 
+.panel-with-pwa-pad {
+  padding-bottom: 1.5rem;
+}
+
 .data-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.8rem;
-  min-width: 0;
+  min-width: 520px;
 }
 
 .data-table th {
@@ -708,6 +712,7 @@ canvas {
   padding: 0.3rem 0.7rem;
   font-size: 0.75rem;
   color: #e6eef4;
+  cursor: pointer;
 }
 
 .watch-chip button {
@@ -723,11 +728,34 @@ canvas {
 .tv-chart {
   position: relative;
   width: 100%;
-  height: clamp(220px, 42vw, 400px);
+  height: 350px;
   border: 1px solid rgba(30, 51, 68, 0.9);
   border-radius: 0.85rem;
   overflow: hidden;
   background: rgba(5, 11, 18, 0.65);
+}
+
+.tv-chart iframe {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.tv-fallback {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: 1rem;
+  color: var(--mist);
+  text-align: center;
+  font-size: 0.85rem;
+}
+
+.scanner-row {
+  cursor: pointer;
+}
+
+.scanner-row:hover td {
+  background: rgba(45, 212, 191, 0.06);
 }
 
 .ws-pill {
@@ -948,6 +976,7 @@ tr.tick-pulse td {
   .cards-on-mobile tbody {
     display: block;
     width: 100%;
+    min-width: 0;
   }
 
   .cards-on-mobile tr {
@@ -996,7 +1025,7 @@ tr.tick-pulse td {
   }
 
   .table-scroll {
-    overflow: visible;
+    overflow-x: auto;
   }
 
   .brand-sub {
@@ -1070,6 +1099,10 @@ tr.tick-pulse td {
 }
 
 @media (min-width: 768px) {
+  .tv-chart {
+    height: 500px;
+  }
+
   .tabs {
     flex-wrap: wrap;
     overflow: visible;
@@ -1088,10 +1121,6 @@ tr.tick-pulse td {
 @media (min-width: 1024px) {
   .app-header {
     margin-bottom: 1.5rem;
-  }
-
-  .tv-chart {
-    height: 400px;
   }
 }
 

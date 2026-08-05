@@ -15,6 +15,7 @@ import ccxt
 import config
 from market_data import MarketDataEngine
 from risk_manager import DEFAULT_ACCOUNT_BALANCE, RiskManager
+from scanner import seed_pair_rows
 from strategy import SignalGenerator
 from sentiment_engine import sentiment_engine
 
@@ -24,27 +25,17 @@ class MarketScanner:
 
     def __init__(self, exchange_id: str = config.EXCHANGE_ID) -> None:
         self.exchange_id = exchange_id
-        self._pairs_cache: list[dict[str, Any]] = []
-        self._pairs_cached_at: float = 0.0
+        # Instant top-50 seed so dropdown / watchlist never wait on CCXT.
+        self._pairs_cache: list[dict[str, Any]] = seed_pair_rows()
+        self._pairs_cached_at: float = time.time()
+        self._live_fetched: bool = False
         self._market = MarketDataEngine(exchange_id=exchange_id)
         self._signals = SignalGenerator()
 
     def close(self) -> None:
         self._market.close()
 
-    def fetch_top_usdt_pairs(
-        self,
-        limit: int = config.SCANNER_TOP_PAIRS,
-        force: bool = False,
-    ) -> list[dict[str, Any]]:
-        now = time.time()
-        if (
-            not force
-            and self._pairs_cache
-            and (now - self._pairs_cached_at) < config.SCANNER_CACHE_SECONDS
-        ):
-            return self._pairs_cache[:limit]
-
+    def _fetch_live_universe(self) -> list[dict[str, Any]]:
         exchange_class = getattr(ccxt, self.exchange_id)
         exchange = exchange_class({"enableRateLimit": True, "options": {"defaultType": "future"}})
         try:
@@ -108,9 +99,47 @@ class MarketScanner:
             seen_bases.add(base)
             unique.append(row)
 
-        self._pairs_cache = unique
-        self._pairs_cached_at = now
-        return unique[:limit]
+        # Ensure curated top-50 seeds remain present even if volume ranking shifts.
+        have = {str(r["symbol"]).upper() for r in unique}
+        for seed in seed_pair_rows():
+            if seed["symbol"].upper() not in have:
+                unique.append(seed)
+                have.add(seed["symbol"].upper())
+        return unique
+
+    def fetch_top_usdt_pairs(
+        self,
+        limit: int = config.SCANNER_TOP_PAIRS,
+        force: bool = False,
+    ) -> list[dict[str, Any]]:
+        now = time.time()
+        if (
+            not force
+            and self._live_fetched
+            and self._pairs_cache
+            and (now - self._pairs_cached_at) < config.SCANNER_CACHE_SECONDS
+        ):
+            return self._pairs_cache[:limit]
+
+        # Zero-latency path: serve curated top-50 seeds until a live refresh lands.
+        if not force and not self._live_fetched and self._pairs_cache:
+            return self._pairs_cache[:limit]
+
+        try:
+            unique = self._fetch_live_universe()
+            self._pairs_cache = unique
+            self._pairs_cached_at = now
+            self._live_fetched = True
+            return unique[:limit]
+        except Exception:
+            if self._pairs_cache:
+                return self._pairs_cache[:limit]
+            self._pairs_cache = seed_pair_rows()
+            return self._pairs_cache[:limit]
+
+    def refresh_live_universe(self) -> list[dict[str, Any]]:
+        """Force CCXT volume ranking refresh (startup / admin)."""
+        return self.fetch_top_usdt_pairs(limit=config.SCANNER_TOP_PAIRS, force=True)
 
     def list_symbols(self, limit: int = config.SCANNER_TOP_PAIRS) -> list[str]:
         return [p["symbol"] for p in self.fetch_top_usdt_pairs(limit=limit)]

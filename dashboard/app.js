@@ -1,9 +1,29 @@
 (() => {
   const SLOW_REFRESH_MS = 20000; // SEO / sentiment / copy only
   const TOKEN_KEY = "beast_jwt";
+  // Zero-latency top-50 seed (mirrors backend scanner.TOP_50_USDT_PAIRS)
+  const SEED_TOP_50 = [
+    "BTC/USDT", "ETH/USDT", "SOL/USDT", "XRP/USDT", "DOGE/USDT",
+    "ADA/USDT", "BNB/USDT", "AVAX/USDT", "LINK/USDT", "MATIC/USDT",
+    "DOT/USDT", "NEAR/USDT", "SHIB/USDT", "PEPE/USDT", "SUI/USDT",
+    "APT/USDT", "FET/USDT", "ARB/USDT", "OP/USDT", "UNI/USDT",
+    "ATOM/USDT", "LTC/USDT", "TRX/USDT", "TON/USDT", "INJ/USDT",
+    "RENDER/USDT", "FIL/USDT", "AAVE/USDT", "MKR/USDT", "CRV/USDT",
+    "WLD/USDT", "SEI/USDT", "TIA/USDT", "ORDI/USDT", "WIF/USDT",
+    "BONK/USDT", "FLOKI/USDT", "ICP/USDT", "HBAR/USDT", "ALGO/USDT",
+    "VET/USDT", "GRT/USDT", "STX/USDT", "IMX/USDT", "RUNE/USDT",
+    "ENS/USDT", "LDO/USDT", "PYTH/USDT", "JUP/USDT", "ONDO/USDT",
+  ];
   let toggling = false;
   let watchlist = ["BTC/USDT", "ETH/USDT", "SOL/USDT"];
-  let universe = [];
+  let universe = SEED_TOP_50.map((symbol, i) => ({
+    symbol,
+    base: symbol.split("/")[0],
+    quote: "USDT",
+    quote_volume: 50_000_000 - i * 100_000,
+    last: 0,
+    info_type: "seed",
+  }));
   let currentUser = null;
   let chartEngine = null;
   let chartCandles = [];
@@ -110,23 +130,52 @@
 
   function populateChartSymbols(pairs) {
     if (!els.chartSymbol) return;
-    const opts = pairs && pairs.length ? pairs : watchlist;
+    const merged = [];
+    const seen = new Set();
+    for (const s of [...(pairs || []), ...SEED_TOP_50, ...watchlist]) {
+      const sym = normalizeSymbol(s);
+      if (!sym || seen.has(sym)) continue;
+      seen.add(sym);
+      merged.push(sym);
+    }
+    const opts = merged.length ? merged : watchlist;
     els.chartSymbol.innerHTML = opts
       .map((s) => `<option value="${s}" ${s === chartSymbol ? "selected" : ""}>${s}</option>`)
       .join("");
   }
 
+  function selectChartSymbol(symbol) {
+    const sym = normalizeSymbol(symbol);
+    if (!sym) return;
+    chartSymbol = sym;
+    if (els.chartSymbol) {
+      const has = [...els.chartSymbol.options].some((o) => o.value === sym);
+      if (!has) {
+        const opt = document.createElement("option");
+        opt.value = sym;
+        opt.textContent = sym;
+        els.chartSymbol.appendChild(opt);
+      }
+      els.chartSymbol.value = sym;
+    }
+    loadChart(sym);
+  }
+
   async function loadChart(symbol) {
     chartSymbol = symbol || chartSymbol;
     if (chartEngine) chartEngine.setSymbol(chartSymbol);
-    if (els.chartMeta) els.chartMeta.textContent = `Loading ${chartSymbol}…`;
+    const tv =
+      (window.BeastCharts && window.BeastCharts.toTradingViewSymbol
+        ? window.BeastCharts.toTradingViewSymbol(chartSymbol)
+        : null) || `BINANCE:${String(chartSymbol).replace("/", "")}`;
+    if (els.chartMeta) els.chartMeta.textContent = `${chartSymbol} · ${tv}`;
+    // Optional candle meta for markers (non-blocking)
     try {
       const data = await fetchJson(
         `/api/market/ohlcv?symbol=${encodeURIComponent(chartSymbol)}&timeframe=1h&limit=200`
       );
       chartCandles = data.candles || [];
       if (chartEngine) {
-        chartEngine.loadCandles(chartCandles);
         const markers = window.BeastCharts.buildSignalMarkers(
           chartCandles,
           lastMarkets,
@@ -137,11 +186,11 @@
         const pos = lastPositions.find((p) => p.symbol === chartSymbol);
         chartEngine.applyMarketRow(market, pos);
       }
-      if (els.chartMeta) {
-        els.chartMeta.textContent = `${chartSymbol} · ${chartCandles.length} candles · 1h`;
+      if (els.chartMeta && chartCandles.length) {
+        els.chartMeta.textContent = `${chartSymbol} · ${tv} · ${chartCandles.length} bars`;
       }
-    } catch (err) {
-      if (els.chartMeta) els.chartMeta.textContent = `Chart load failed: ${err.message}`;
+    } catch (_) {
+      /* TradingView widget remains the primary chart */
     }
   }
 
@@ -396,7 +445,7 @@
     els.watchChips.innerHTML = watchlist
       .map(
         (sym) => `
-      <span class="watch-chip">
+      <span class="watch-chip" data-chart="${sym}" title="Show ${sym} on chart">
         ${sym}
         <button type="button" data-remove="${sym}" aria-label="Remove ${sym}">×</button>
       </span>`
@@ -404,11 +453,17 @@
       .join("");
     els.watchMeta.textContent = `${watchlist.length} pairs in watchlist`;
     els.watchChips.querySelectorAll("[data-remove]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
+      btn.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
         const sym = btn.getAttribute("data-remove");
         watchlist = watchlist.filter((s) => s !== sym);
         await persistWatchlist();
         renderWatchChips();
+      });
+    });
+    els.watchChips.querySelectorAll("[data-chart]").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        selectChartSymbol(chip.getAttribute("data-chart"));
       });
     });
   }
@@ -419,13 +474,17 @@
       .filter((p) => !q || p.symbol.includes(q) || String(p.base || "").includes(q))
       .slice(0, 120);
     els.pairSelect.innerHTML =
-      `<option value="">Select from top volume (${universe.length})</option>` +
+      `<option value="">Select from top ${universe.length} pairs</option>` +
       options
         .map(
           (p) =>
-            `<option value="${p.symbol}">${p.symbol} · vol $${Number(
-              p.quote_volume || 0
-            ).toLocaleString(undefined, { maximumFractionDigits: 0 })}</option>`
+            `<option value="${p.symbol}">${p.symbol}${
+              Number(p.quote_volume || 0) > 0 && p.info_type !== "seed"
+                ? ` · vol $${Number(p.quote_volume || 0).toLocaleString(undefined, {
+                    maximumFractionDigits: 0,
+                  })}`
+                : ""
+            }</option>`
         )
         .join("");
   }
@@ -467,7 +526,7 @@
       .slice(0, 50)
       .map(
         (m) => `
-      <tr class="fade-in">
+      <tr class="fade-in scanner-row" data-symbol="${m.symbol}" title="Open ${m.symbol} chart">
         <td data-label="Pair" class="font-semibold text-white">${m.symbol}</td>
         <td data-label="Price">${fmt(m.price || m.entry_price, (m.price || m.entry_price) >= 100 ? 2 : 4)}</td>
         <td data-label="AI Signal">${signalBadge(m.signal)}</td>
@@ -659,9 +718,20 @@
   }
 
   async function loadUniverse() {
-    const data = await fetchJson("/api/scanner/pairs?limit=120");
-    universe = data.pairs || [];
+    // Seed already populates dropdown instantly; refresh upgrades volume ranking.
     populatePairSelect();
+    populateChartSymbols(SEED_TOP_50);
+    try {
+      const data = await fetchJson("/api/scanner/pairs?limit=50");
+      if (data.pairs && data.pairs.length) {
+        universe = data.pairs;
+        populatePairSelect();
+        populateChartSymbols(universe.map((p) => p.symbol));
+      }
+    } catch (err) {
+      // Keep seeded top-50 — no empty dropdown on API latency/failure.
+      console.warn("Universe refresh deferred:", err.message);
+    }
   }
 
   async function refreshSecondary() {
@@ -911,11 +981,28 @@
 
   if (els.chartSymbol) {
     els.chartSymbol.addEventListener("change", () => {
-      loadChart(els.chartSymbol.value);
+      selectChartSymbol(els.chartSymbol.value);
+    });
+  }
+
+  if (els.scannerBody) {
+    els.scannerBody.addEventListener("click", (ev) => {
+      const row = ev.target.closest("tr[data-symbol]");
+      if (row) selectChartSymbol(row.getAttribute("data-symbol"));
+    });
+  }
+
+  if (els.pairSelect) {
+    els.pairSelect.addEventListener("change", () => {
+      if (els.pairSelect.value) selectChartSymbol(els.pairSelect.value);
     });
   }
 
   (async () => {
+    // Instant UI: seed dropdown / chart symbols before network.
+    populatePairSelect();
+    populateChartSymbols(SEED_TOP_50);
+
     const bootParams = new URLSearchParams(window.location.search);
     const oauthToken = bootParams.get("oauth_token");
     if (oauthToken) {
@@ -940,9 +1027,13 @@
     }
     if (tab) switchTab(tab);
     await loadUniverse().catch((err) => {
-      els.watchMeta.textContent = `Universe load failed: ${err.message}`;
+      els.watchMeta.textContent = `Using seeded top 50 · ${err.message}`;
     });
-    populateChartSymbols(watchlist);
+    populateChartSymbols([
+      ...watchlist,
+      ...SEED_TOP_50,
+      ...universe.map((p) => p.symbol),
+    ]);
     if (window.BeastCharts) {
       chartEngine = window.BeastCharts.createChartEngine("tv-chart");
     }

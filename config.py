@@ -198,3 +198,5 @@ BACKUP_KEY_ENV: Final[str] = "BACKUP_KEY"
 SCANNER_TOP_PAIRS: Final[int] = 120
 SCANNER_GLOBAL_DEFAULT: Final[int] = 50
 SCANNER_CACHE_SECONDS: Final[int] = 300
+# Curated zero-latency seed size (see scanner.TOP_50_USDT_PAIRS)
+SCANNER_SEED_PAIRS: Final[int] = 50
