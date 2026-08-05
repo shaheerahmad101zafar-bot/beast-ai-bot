@@ -61,13 +61,14 @@
   function openAuth(mode = "signup") {
     authMode = mode;
     authError.classList.add("hidden");
-    authTitle.textContent = mode === "signup" ? "See what’s trading" : "Welcome back";
+    authTitle.textContent =
+      mode === "signup" ? "Access the institutional desk" : "Welcome back, operator";
     const sub = document.getElementById("auth-subtitle");
     if (sub) {
       sub.textContent =
         mode === "signup"
-          ? "Create your Beast AI desk · 7-day Pro trial"
-          : "Log in to continue to your desk";
+          ? "Provision your Beast AI desk · 7-day Pro trial"
+          : "Authenticate to continue to your algorithmic desk";
     }
     authSubmit.textContent = mode === "signup" ? "Create account" : "Continue";
     document.querySelectorAll(".auth-tab").forEach((tab) => {
@@ -127,7 +128,7 @@
         const highlighted = t.highlighted ? "highlighted" : "";
         const features = (t.features || []).map((f) => `<li>${f}</li>`).join("");
         return `
-      <article class="price-card ${highlighted}">
+      <article class="price-card glass-card ${highlighted}">
         <div class="price-name">${t.name}</div>
         <div class="price-amount">$${t.price_usd}<span>/${t.interval}</span></div>
         <p class="price-headline">${t.headline || ""}</p>
@@ -207,7 +208,7 @@
       servicesGrid.innerHTML = (content.services || [])
         .map(
           (s) => `
-        <article class="service-card">
+        <article class="service-card glass-card">
           <h3>${s.title || ""}</h3>
           <p>${s.body || ""}</p>
         </article>`
@@ -219,7 +220,7 @@
       featuresGrid.innerHTML = (content.features || [])
         .map(
           (f) => `
-        <article class="feature-chip">
+        <article class="feature-chip glass-card">
           <strong>${f.title || ""}</strong>
           <span>${f.body || ""}</span>
         </article>`
@@ -248,7 +249,7 @@
       reviewsGrid.innerHTML = quotes
         .map(
           (q) => `
-        <blockquote class="quote">
+        <blockquote class="quote glass-card">
           <p>“${q.text || ""}”</p>
           <footer>— ${q.author || ""}</footer>
         </blockquote>`
@@ -286,6 +287,8 @@
     const signals = ["BTC LONG", "ETH LONG", "SOL SHORT", "BNB LONG"];
     const sentiments = ["62 Bullish", "58 Neutral", "41 Cautious", "71 Risk-On"];
     let i = 0;
+    const timer = document.querySelector(".preview-timer");
+    let elapsed = 15;
     setInterval(() => {
       i = (i + 1) % signals.length;
       const sig = document.getElementById("hero-signal");
@@ -293,6 +296,142 @@
       if (sig) sig.textContent = signals[i];
       if (sent) sent.textContent = sentiments[i];
     }, 3750);
+    setInterval(() => {
+      elapsed = elapsed <= 1 ? 15 : elapsed - 1;
+      if (timer) timer.textContent = `00:${String(elapsed).padStart(2, "0")}`;
+    }, 1000);
+  }
+
+  function startHeroParticles() {
+    const canvas = document.getElementById("hero-particles");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let w = 0;
+    let h = 0;
+    let particles = [];
+    let raf = 0;
+
+    function resize() {
+      const section = canvas.parentElement;
+      w = section?.clientWidth || window.innerWidth;
+      h = section?.clientHeight || window.innerHeight;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.floor(w * dpr);
+      canvas.height = Math.floor(h * dpr);
+      canvas.style.width = `${w}px`;
+      canvas.style.height = `${h}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const count = Math.min(90, Math.floor((w * h) / 18000));
+      particles = Array.from({ length: count }, () => ({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        r: Math.random() * 1.8 + 0.4,
+        vx: (Math.random() - 0.5) * 0.35,
+        vy: (Math.random() - 0.5) * 0.35,
+        c: Math.random() > 0.5 ? "rgba(0,245,160," : "rgba(0,217,246,",
+        a: Math.random() * 0.45 + 0.15,
+      }));
+    }
+
+    function drawGrid() {
+      const step = 56;
+      ctx.strokeStyle = "rgba(0,217,246,0.05)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let x = 0; x <= w; x += step) {
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+      }
+      for (let y = 0; y <= h; y += step) {
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+      }
+      ctx.stroke();
+    }
+
+    function frame() {
+      ctx.clearRect(0, 0, w, h);
+      drawGrid();
+      if (!reduce) {
+        for (const p of particles) {
+          p.x += p.vx;
+          p.y += p.vy;
+          if (p.x < 0 || p.x > w) p.vx *= -1;
+          if (p.y < 0 || p.y > h) p.vy *= -1;
+          ctx.beginPath();
+          ctx.fillStyle = `${p.c}${p.a})`;
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        for (let i = 0; i < particles.length; i += 1) {
+          for (let j = i + 1; j < particles.length; j += 1) {
+            const a = particles[i];
+            const b = particles[j];
+            const dx = a.x - b.x;
+            const dy = a.y - b.y;
+            const dist = Math.hypot(dx, dy);
+            if (dist < 110) {
+              ctx.strokeStyle = `rgba(0,245,160,${0.12 * (1 - dist / 110)})`;
+              ctx.beginPath();
+              ctx.moveTo(a.x, a.y);
+              ctx.lineTo(b.x, b.y);
+              ctx.stroke();
+            }
+          }
+        }
+      }
+      raf = requestAnimationFrame(frame);
+    }
+
+    resize();
+    frame();
+    window.addEventListener("resize", () => {
+      cancelAnimationFrame(raf);
+      resize();
+      frame();
+    });
+  }
+
+  function startAmbientDesk() {
+    const canvas = document.getElementById("hero-ambient");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let t0 = performance.now();
+
+    function paint(now) {
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+      const elapsed = ((now - t0) % 15000) / 15000;
+      // ambient depth bars
+      const bars = 28;
+      const gap = 4;
+      const bw = (w - gap * (bars + 1)) / bars;
+      for (let i = 0; i < bars; i += 1) {
+        const wave = Math.sin(elapsed * Math.PI * 2 + i * 0.35) * 0.5 + 0.5;
+        const bh = 18 + wave * (h * 0.55);
+        const x = gap + i * (bw + gap);
+        const y = h - bh - 8;
+        const grad = ctx.createLinearGradient(0, y, 0, h);
+        grad.addColorStop(0, "rgba(0,245,160,0.55)");
+        grad.addColorStop(1, "rgba(0,217,246,0.05)");
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, y, bw, bh);
+      }
+      // scan line
+      const sx = (elapsed * (w + 40)) % (w + 40) - 20;
+      ctx.strokeStyle = "rgba(0,217,246,0.35)";
+      ctx.beginPath();
+      ctx.moveTo(sx, 0);
+      ctx.lineTo(sx, h);
+      ctx.stroke();
+      if (!reduce) requestAnimationFrame(paint);
+    }
+    requestAnimationFrame(paint);
   }
 
   function calcRoi() {
@@ -385,16 +524,16 @@
           name: "Starter",
           price_usd: 29,
           interval: "month",
-          headline: "Solo traders validating AI signals",
-          features: ["1 connected exchange", "Paper trading engine"],
+          headline: "Solo operators validating institutional signals",
+          features: ["1 connected venue", "Paper trading engine", "AI Sentiment Analytics"],
           cta: "Start Free Trial",
         },
         {
-          name: "Pro Trader",
+          name: "Pro Desk",
           price_usd: 79,
           interval: "month",
-          headline: "Active futures desks scaling edge",
-          features: ["3 connected exchanges", "Copy trading"],
+          headline: "Active futures desks scaling algorithmic edge",
+          features: ["3 connected venues", "Sub-Millisecond Copy Routing", "Risk-gated execution"],
           cta: "Go Pro",
           highlighted: true,
         },
@@ -402,8 +541,8 @@
           name: "Institutional VIP",
           price_usd: 199,
           interval: "month",
-          headline: "Unlimited routing",
-          features: ["Unlimited exchanges", "Priority Telegram"],
+          headline: "Unlimited multi-venue institutional routing",
+          features: ["Unlimited venues", "Priority Telegram ops", "Dedicated desk analytics"],
           cta: "Talk to Sales",
         },
       ]);
@@ -570,6 +709,8 @@
   }
 
   startDemoLoop();
+  startHeroParticles();
+  startAmbientDesk();
   syncAuthFields(authMode);
   hydrate();
 })();

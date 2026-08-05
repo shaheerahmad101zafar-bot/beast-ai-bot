@@ -16,40 +16,40 @@ CMS_PATH = Path(getattr(config, "CMS_CONTENT_PATH", "content/cms_content.json"))
 
 DEFAULT_CONTENT: dict[str, Any] = {
     "meta": {
-        "title": "Beast AI — Automated Futures Trading SaaS",
+        "title": "Beast AI — Institutional Algorithmic Trading Desk",
         "description": (
-            "Beast AI Trading Bot: multi-exchange futures automation, copy trading, "
-            "sentiment filters, and risk-first execution."
+            "Beast AI: institutional algorithmic desk with sub-millisecond copy routing, "
+            "AI sentiment analytics, and risk-first futures automation."
         ),
-        "keywords": "crypto trading bot, futures AI, copy trading, beast ai",
+        "keywords": "institutional trading desk, algorithmic futures, copy routing, beast ai",
     },
     "hero": {
         "brand": "Beast AI",
-        "headline": "Futures automation that sizes risk before it chases alpha.",
+        "headline": "Command an institutional algorithmic desk built for futures alpha.",
         "subheadline": (
-            "Multi-exchange signals, copy trading, and Telegram alerts — "
-            "paper-trade first, go live when ready."
+            "Sub-millisecond copy routing, an AI Sentiment Analytics Engine, and risk-gated "
+            "execution — paper-validate first, then arm live capital with confidence."
         ),
-        "cta_primary": "Start 7-Day Free Trial",
-        "cta_secondary": "Launch Dashboard",
+        "cta_primary": "Start 7-Day Institutional Trial",
+        "cta_secondary": "Launch Trading Desk",
         "video_url": "",
         "banner_poster": "",
     },
     "faq": [
         {
-            "question": "Is the 7-day trial really free?",
-            "answer": "Yes. Trialing status unlocks the Pro feature set locally so you can connect exchanges in paper mode, run the scanner, and test Telegram mock alerts before billing.",
+            "question": "Is the 7-day institutional trial really free?",
+            "answer": "Yes. Trialing status unlocks the Pro feature set so you can vault exchanges in paper mode, run the scanner, and validate Telegram ops alerts before billing.",
         },
         {
             "question": "Do you place live orders by default?",
             "answer": "No. Paper trading is the default. Live copy routing is gated by configuration and requires validated API keys with withdrawals disabled.",
         },
         {
-            "question": "Which exchanges are supported?",
-            "answer": "Binance, Bybit, KuCoin, and OKX via CCXT, with tier limits on how many accounts you can vault.",
+            "question": "Which venues are supported?",
+            "answer": "Binance, Bybit, KuCoin, and OKX via CCXT, with tier limits on how many accounts you can vault to the institutional desk.",
         },
         {
-            "question": "How does copy trading sizing work?",
+            "question": "How does sub-millisecond copy routing size orders?",
             "answer": "Follower order size scales by equity ratio versus the master account — a $100 follower mirrors 1% of a $10,000 master notional.",
         },
         {
@@ -59,42 +59,42 @@ DEFAULT_CONTENT: dict[str, Any] = {
     ],
     "testimonials": [
         {
-            "text": "Risk sizing finally feels institutional. We paper-traded for a week, then mirrored to Bybit followers.",
+            "text": "Risk sizing finally feels institutional. We paper-validated for a week, then mirrored to Bybit followers with clean copy routing.",
             "author": "Lena K., Prop Desk Lead",
         },
         {
-            "text": "The sentiment gate saved us from longing into a fear spike. Telegram pings are clean and actionable.",
+            "text": "The AI Sentiment Analytics Engine blocked a FOMO long into a fear spike. Ops alerts are crisp and actionable.",
             "author": "Marcus R., Crypto Fund Analyst",
         },
         {
-            "text": "Copy trading proportional sizing is the feature we were hacking together manually.",
+            "text": "Sub-millisecond proportional copy routing replaced the spreadsheet stack we were maintaining by hand.",
             "author": "Ava S., Boutique Quant",
         },
     ],
     "features": [
         {
-            "title": "Risk-first signal engine",
-            "body": "RSI, EMA, MACD and ATR confluence with position sizing before every entry.",
+            "title": "Institutional Algorithmic Desk",
+            "body": "RSI, EMA, MACD and ATR confluence with hard risk sizing before every entry.",
         },
         {
-            "title": "Multi-exchange vault",
-            "body": "Connect Binance, Bybit, KuCoin, and OKX with encrypted local key storage.",
+            "title": "Multi-venue encrypted vault",
+            "body": "Connect Binance, Bybit, KuCoin, and OKX with Fernet-encrypted local key storage.",
         },
         {
-            "title": "Copy trading desk",
-            "body": "Proportional follower sizing and a 15% master profit-share ledger.",
+            "title": "Sub-Millisecond Copy Routing",
+            "body": "Equity-ratio follower sizing with a transparent master profit-share ledger.",
         },
         {
-            "title": "Sentiment confluence",
-            "body": "Live news scoring blocks FOMO longs and panic shorts at the edge.",
+            "title": "AI Sentiment Analytics Engine",
+            "body": "Live news scoring that blocks FOMO longs and panic shorts at the execution edge.",
         },
         {
-            "title": "Telegram ops alerts",
+            "title": "Telegram ops telemetry",
             "body": "Signal, fill, and daily PnL notifications with mock mode for local demos.",
         },
         {
-            "title": "PWA + live charts",
-            "body": "Installable trading desk with WebSocket ticks and TradingView candles.",
+            "title": "PWA + TradingView desk",
+            "body": "Installable trading desk with WebSocket ticks and live TradingView charts.",
         },
     ],
     "pricing_rates": {
@@ -108,7 +108,7 @@ DEFAULT_CONTENT: dict[str, Any] = {
             "body": "Automated scan cycles across your watchlist with SL/TP overlays and confidence gates.",
         },
         {
-            "title": "Desk analytics",
+            "title": "Institutional desk analytics",
             "body": "Equity, win rate, and trade history streamed to the dashboard in real time.",
         },
         {
