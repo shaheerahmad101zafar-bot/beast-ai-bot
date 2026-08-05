@@ -118,6 +118,7 @@ def user_to_public(user: User) -> dict[str, Any]:
         "address": getattr(user, "address", "") or "",
         "country": getattr(user, "country", "") or "",
         "auth_provider": getattr(user, "auth_provider", None) or "email",
+        "avatar_url": getattr(user, "avatar_url", None),
         "plan": user.plan,
         "subscription_status": getattr(user, "subscription_status", None) or "trialing",
         "payment_provider": getattr(user, "payment_provider", None),
@@ -300,3 +301,35 @@ def client_meta(request: Request) -> tuple[str | None, str | None]:
         ip = forwarded.split(",")[0].strip()
     ua = request.headers.get("user-agent")
     return ip, ua
+
+
+# ---------------------------------------------------------------------------
+# Google OAuth 2.0 — thin wrappers used by dedicated /api/auth/google/* routes
+# ---------------------------------------------------------------------------
+def google_oauth_login_url(next_path: str = "/app") -> str:
+    """Build redirect URL to Google's consent screen (or local demo fallback)."""
+    from oauth_auth import start_google_oauth
+
+    return start_google_oauth(next_path=next_path)["auth_url"]
+
+
+def google_oauth_callback(
+    db: Session,
+    *,
+    state: str,
+    code: str = "",
+    demo: bool = False,
+    ip: str | None = None,
+    user_agent: str | None = None,
+) -> dict[str, Any]:
+    """Verify Google ID token / user profile, upsert user, return JWT payload."""
+    from oauth_auth import complete_google_oauth
+
+    return complete_google_oauth(
+        db,
+        state=state,
+        code=code,
+        demo=demo,
+        ip=ip,
+        user_agent=user_agent,
+    )

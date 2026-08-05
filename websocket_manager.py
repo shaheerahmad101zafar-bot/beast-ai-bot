@@ -10,8 +10,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import socket
 from datetime import datetime, timezone
 from typing import Any, Literal
+from urllib.parse import urlparse
 
 import websockets
 from fastapi import WebSocket, WebSocketDisconnect
@@ -23,17 +25,64 @@ logger = logging.getLogger("beast.websocket")
 
 Channel = Literal["market", "bot-status"]
 
+# Known-good public USD-M Futures combined-stream host (DNS-stable on most clouds).
+_DEFAULT_BINANCE_WS = "wss://fstream.binance.com"
+_FALLBACK_BINANCE_WS = "wss://stream.binancefutures.com"
+
+
+def _is_dns_failure(exc: BaseException) -> bool:
+    """True when the failure is hostname/DNS resolution (noisy on some hosts)."""
+    if isinstance(exc, socket.gaierror):
+        return True
+    msg = str(exc).lower()
+    needles = (
+        "getaddrinfo failed",
+        "name or service not known",
+        "nodename nor servname",
+        "temporary failure in name resolution",
+        "failed to resolve",
+        "name resolution",
+        "dns",
+        "[errno 11001]",  # Windows WSAHOST_NOT_FOUND
+        "[errno -2]",
+        "[errno -3]",
+    )
+    return any(n in msg for n in needles)
+
+
+def _host_resolves(ws_base: str) -> bool:
+    """Best-effort DNS preflight; failures are logged quietly and skipped."""
+    host = urlparse(ws_base).hostname
+    if not host:
+        return False
+    try:
+        socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
+        return True
+    except OSError as exc:
+        logger.info(
+            "Binance WS DNS skip %s (%s) — falling back to next endpoint",
+            host,
+            exc,
+        )
+        return False
+
+
 def _binance_ws_bases() -> tuple[str, ...]:
-    primary = getattr(config, "BINANCE_FUTURES_WS", "wss://stream.binancefutures.com")
-    bases = [primary, "wss://fstream.binance.com", "wss://stream.binancefutures.com"]
-    # Deduplicate preserving order
+    """Prefer fstream; treat stream.binancefutures.com as optional fallback."""
+    primary = getattr(config, "BINANCE_FUTURES_WS", _DEFAULT_BINANCE_WS) or _DEFAULT_BINANCE_WS
+    # Always try the stable host first unless env already points there.
+    bases = [_DEFAULT_BINANCE_WS, primary, _FALLBACK_BINANCE_WS]
     seen: set[str] = set()
     out: list[str] = []
     for b in bases:
-        if b and b not in seen:
-            seen.add(b)
-            out.append(b)
-    return tuple(out)
+        b = (b or "").rstrip("/")
+        if not b or b in seen:
+            continue
+        seen.add(b)
+        out.append(b)
+    # Prefer resolvable hosts; if DNS probe fails for all, still return ordered list.
+    resolvable = [b for b in out if _host_resolves(b)]
+    return tuple(resolvable or out)
 
 
 def _utc_iso() -> str:
@@ -205,7 +254,15 @@ class BinanceFuturesListener:
                 except Exception as exc:  # noqa: BLE001
                     self.connected = False
                     self.last_error = str(exc)
-                    logger.warning("Binance WS error (%s): %s", base, exc)
+                    if _is_dns_failure(exc):
+                        # stream.binancefutures.com often NXDOMAIN on Render — soft-log + try fstream.
+                        logger.info(
+                            "Binance WS DNS unresolved for %s — trying fallback (backoff %.1fs)",
+                            base,
+                            backoff,
+                        )
+                    else:
+                        logger.warning("Binance WS error (%s): %s", base, exc)
                     await self.on_message(
                         {
                             "type": "binance_disconnected",
@@ -220,7 +277,7 @@ class BinanceFuturesListener:
             if self._stop.is_set():
                 break
             await asyncio.sleep(backoff)
-            backoff = min(backoff * 1.7, 30.0)
+            backoff = min(backoff * 2.0, 60.0)
 
     async def _handle(self, msg: dict[str, Any]) -> None:
         data = msg.get("data") if isinstance(msg.get("data"), dict) else msg

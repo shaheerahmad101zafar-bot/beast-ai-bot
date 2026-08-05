@@ -481,6 +481,11 @@
       btn.disabled = true;
       try {
         const next = new URLSearchParams(window.location.search).get("next") || "/app";
+        // Real Google OAuth 2.0 — full-page redirect to consent → callback → /app
+        if (provider === "google") {
+          window.location.href = `/api/auth/google/login?next=${encodeURIComponent(next)}`;
+          return;
+        }
         const data = await fetchJson(
           `/api/auth/oauth/${provider}/start?next=${encodeURIComponent(next)}`
         );

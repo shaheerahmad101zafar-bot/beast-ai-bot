@@ -78,9 +78,10 @@ BOT_AUTO_START: Final[bool] = os.getenv("BOT_AUTO_START", "true").strip().lower(
 }
 STATUS_SCAN_CACHE_SECONDS: Final[int] = 3
 WS_SNAPSHOT_INTERVAL: Final[float] = float(os.getenv("WS_SNAPSHOT_INTERVAL", "1.0"))
+# Prefer fstream.binance.com — stream.binancefutures.com often fails DNS on cloud hosts.
 BINANCE_FUTURES_WS: Final[str] = os.getenv(
     "BINANCE_FUTURES_WS",
-    "wss://stream.binancefutures.com",
+    "wss://fstream.binance.com",
 )
 
 # ---------------------------------------------------------------------------

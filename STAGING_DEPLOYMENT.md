@@ -118,6 +118,9 @@ python run_worker.py
 | `ADMIN_EMAIL` | Yes | `admin@example.com` |
 | `ADMIN_PASSWORD` | Yes | Strong password for QA admin |
 | `SITE_BASE_URL` | Yes after first URL known | `https://beast-ai-web.onrender.com` |
+| `OAUTH_GOOGLE_CLIENT_ID` | For live Google login | Google Cloud OAuth client ID |
+| `OAUTH_GOOGLE_CLIENT_SECRET` | For live Google login | Google Cloud OAuth secret |
+| `BINANCE_FUTURES_WS` | Optional | `wss://fstream.binance.com` (default) |
 | `API_HOST` | Optional | Defaults to `0.0.0.0` in cloud |
 | `PORT` | Auto | Injected by Render/Koyeb — do not hardcode |
 | `BOT_AUTO_START` | Recommended `true` on web | Keeps scanner alive without worker |

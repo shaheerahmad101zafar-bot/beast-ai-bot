@@ -40,6 +40,12 @@ services:
         sync: false
       - key: TELEGRAM_CHAT_ID
         sync: false
+      - key: OAUTH_GOOGLE_CLIENT_ID
+        sync: false
+      - key: OAUTH_GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: BINANCE_FUTURES_WS
+        value: "wss://fstream.binance.com"
 
   - type: worker
     name: beast-ai-worker

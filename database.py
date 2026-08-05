@@ -43,6 +43,7 @@ class User(Base):
     country: Mapped[str] = mapped_column(String(80), default="", nullable=False)
     auth_provider: Mapped[str] = mapped_column(String(32), default="email", nullable=False)
     oauth_subject: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     plan: Mapped[str] = mapped_column(String(32), default="pro", nullable=False)
@@ -182,6 +183,7 @@ def _ensure_user_columns() -> None:
         "country": "ALTER TABLE users ADD COLUMN country VARCHAR(80) DEFAULT ''",
         "auth_provider": "ALTER TABLE users ADD COLUMN auth_provider VARCHAR(32) DEFAULT 'email'",
         "oauth_subject": "ALTER TABLE users ADD COLUMN oauth_subject VARCHAR(255)",
+        "avatar_url": "ALTER TABLE users ADD COLUMN avatar_url VARCHAR(512)",
         "last_login_at": "ALTER TABLE users ADD COLUMN last_login_at DATETIME",
         "last_seen_at": "ALTER TABLE users ADD COLUMN last_seen_at DATETIME",
     }

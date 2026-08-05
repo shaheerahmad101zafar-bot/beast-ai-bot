@@ -28,6 +28,8 @@ from auth import (
     decode_token,
     get_current_user,
     get_db,
+    google_oauth_callback,
+    google_oauth_login_url,
     resolve_optional_user,
     signup_user,
     update_user_watchlist,
@@ -531,6 +533,53 @@ async def api_oauth_providers() -> dict[str, Any]:
     return {"ok": True, "providers": providers_status()}
 
 
+@app.get("/api/auth/google/login")
+async def api_google_login(
+    next: str = Query(default="/app"),
+) -> RedirectResponse:
+    """Redirect browser to Google's OAuth consent screen."""
+    next_path = next if next.startswith("/") else "/app"
+    auth_url = google_oauth_login_url(next_path=next_path)
+    return RedirectResponse(url=auth_url, status_code=302)
+
+
+@app.get("/api/auth/google/callback")
+async def api_google_callback(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+    state: str = Query(default=""),
+    code: str = Query(default=""),
+    demo: int = Query(default=0),
+    error: str = Query(default=""),
+) -> RedirectResponse:
+    """
+    Google OAuth callback: verify ID token, upsert user, set JWT cookie,
+    redirect signed-in users to /app (or next).
+    """
+    if error:
+        raise HTTPException(status_code=400, detail=f"Google OAuth error: {error}")
+    ip, ua = client_meta(request)
+    result = google_oauth_callback(
+        db,
+        state=state,
+        code=code,
+        demo=bool(demo == 1),
+        ip=ip,
+        user_agent=ua,
+    )
+    token = result["token"]
+    _set_auth_cookie(response, token)
+    next_path = result.get("next") or "/app"
+    if not str(next_path).startswith("/"):
+        next_path = "/app"
+    sep = "&" if "?" in next_path else "?"
+    return RedirectResponse(
+        url=f"{next_path}{sep}oauth_token={token}",
+        status_code=302,
+    )
+
+
 @app.get("/api/auth/oauth/{provider}/start")
 async def api_oauth_start(
     provider: str,
@@ -538,6 +587,11 @@ async def api_oauth_start(
 ) -> dict[str, Any]:
     if provider.lower() not in PROVIDERS:
         raise HTTPException(status_code=400, detail="Unsupported provider")
+    # Dedicated Google flow prefers /api/auth/google/login
+    if provider.lower() == "google":
+        from oauth_auth import start_google_oauth
+
+        return start_google_oauth(next_path=next or "/app")
     return start_oauth(provider, next_path=next or "/app")
 
 
@@ -560,7 +614,16 @@ async def api_oauth_callback(
         state = str(form.get("state") or state)
         code = str(form.get("code") or code)
     ip, ua = client_meta(request)
-    if demo == 1:
+    if provider.lower() == "google":
+        result = google_oauth_callback(
+            db,
+            state=state,
+            code=code,
+            demo=bool(demo == 1),
+            ip=ip,
+            user_agent=ua,
+        )
+    elif demo == 1:
         result = complete_demo_oauth(
             db, provider=provider.lower(), state=state, ip=ip, user_agent=ua
         )
