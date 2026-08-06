@@ -758,6 +758,91 @@ canvas {
   background: rgba(45, 212, 191, 0.06);
 }
 
+.chart-engine-toggle {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  border-radius: 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.eng-btn {
+  border: 0;
+  border-radius: 0.55rem;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--mist);
+  background: transparent;
+}
+
+.eng-btn.active {
+  color: #041018;
+  background: linear-gradient(135deg, #00f5a0, #00d9f6);
+}
+
+.glass-panel {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(12px);
+  border-radius: 0.9rem;
+  padding: 0.9rem;
+}
+
+.desk-mode-btn.active {
+  box-shadow: 0 0 18px rgba(0, 245, 160, 0.25);
+}
+
+.news-feed {
+  display: grid;
+  gap: 0.55rem;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.news-item {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  background: rgba(7, 16, 24, 0.45);
+}
+
+.news-badge {
+  flex: 0 0 auto;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+}
+
+.news-badge.bullish { background: rgba(0, 245, 160, 0.18); color: #00f5a0; }
+.news-badge.bearish { background: rgba(244, 63, 94, 0.18); color: #fb7185; }
+.news-badge.neutral { background: rgba(148, 163, 184, 0.15); color: #94a3b8; }
+
+.pnl-badge {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+.pnl-badge.profit { background: rgba(0, 245, 160, 0.18); color: #00f5a0; }
+.pnl-badge.loss { background: rgba(244, 63, 94, 0.18); color: #fb7185; }
+
+.margin-toggle {
+  display: inline-flex;
+  gap: 0.3rem;
+  padding: 0.25rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 .ws-pill {
   font-size: 0.68rem;
   letter-spacing: 0.08em;

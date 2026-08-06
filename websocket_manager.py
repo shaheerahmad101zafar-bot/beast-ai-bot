@@ -414,6 +414,24 @@ class WebSocketHub:
                     "ts": payload.get("ts"),
                 }
                 self._apply_mark(symbol, float(mid))
+                try:
+                    from hft_scalper import hft_scalper
+
+                    events = hft_scalper.ingest_tick(
+                        symbol,
+                        float(mid),
+                        bid=float(payload.get("bid") or 0) or None,
+                        ask=float(payload.get("ask") or 0) or None,
+                    )
+                    for ev in events:
+                        self.push_activity(
+                            f"HFT {ev.get('type')}: {ev.get('symbol')} {ev.get('side')}",
+                            "hft",
+                        )
+                        await self.manager.broadcast("market", ev)
+                        await self.manager.broadcast("bot-status", ev)
+                except Exception:  # noqa: BLE001
+                    pass
             # Throttle book broadcasts (~8/sec/symbol max)
             await self._throttled_broadcast(symbol, "book_ticker", payload, min_interval=0.12)
             return
@@ -429,6 +447,17 @@ class WebSocketHub:
                     "ts": payload.get("ts"),
                 }
                 self._apply_mark(symbol, price)
+                try:
+                    from hft_scalper import hft_scalper
+                    from quantum_engine import quantum_engine
+
+                    quantum_engine._price_hist[symbol].append(price)
+                    quantum_engine.update_liquidation_heatmap(symbol, price)
+                    events = hft_scalper.ingest_tick(symbol, price)
+                    for ev in events:
+                        await self.manager.broadcast("market", ev)
+                except Exception:  # noqa: BLE001
+                    pass
             await self._throttled_broadcast(symbol, "mark_price", payload, min_interval=0.25)
             return
 

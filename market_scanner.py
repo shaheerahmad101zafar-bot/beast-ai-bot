@@ -15,9 +15,10 @@ import ccxt
 import config
 from market_data import MarketDataEngine
 from risk_manager import DEFAULT_ACCOUNT_BALANCE, RiskManager
-from scanner import seed_pair_rows
+from scanner import fetch_all_usdt_futures_pairs, seed_pair_rows
 from strategy import SignalGenerator
 from sentiment_engine import sentiment_engine
+from trading_engine import trading_engine
 
 
 class MarketScanner:
@@ -36,6 +37,14 @@ class MarketScanner:
         self._market.close()
 
     def _fetch_live_universe(self) -> list[dict[str, Any]]:
+        # Prefer Binance fapi exchangeInfo for full 200+ USDT perpetual coverage.
+        try:
+            fapi_rows = fetch_all_usdt_futures_pairs(limit=max(config.SCANNER_TOP_PAIRS, 250))
+            if len(fapi_rows) >= 50:
+                return fapi_rows
+        except Exception:
+            pass
+
         exchange_class = getattr(ccxt, self.exchange_id)
         exchange = exchange_class({"enableRateLimit": True, "options": {"defaultType": "future"}})
         try:
@@ -174,11 +183,15 @@ class MarketScanner:
                 df = self._market.get_market_snapshot(market_symbol, timeframe=timeframe)
                 if df.empty:
                     continue
-                signal = self._signals.generate(
+                signal = trading_engine.evaluate(
                     df,
                     symbol=display,
                     sentiment_score=sentiment_score,
+                    equity=account_balance,
                 )
+                # Back-compat keys expected by risk/UI
+                if "confidence" not in signal and "confidence_score" in signal:
+                    signal["confidence"] = signal["confidence_score"]
                 sized = risk.evaluate_trade(signal)
                 results.append(
                     {

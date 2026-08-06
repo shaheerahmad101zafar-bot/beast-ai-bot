@@ -26,6 +26,12 @@
   }));
   let currentUser = null;
   let chartEngine = null;
+  let tvEngine = null;
+  let beastEngine = null;
+  let chartEngineMode = localStorage.getItem("beast_chart_engine") || "beast";
+  let deskMode = "auto";
+  let marginMode = "isolated";
+  let hftEnabled = false;
   let chartCandles = [];
   let chartSymbol = "BTC/USDT";
   let lastMarkets = [];
@@ -168,30 +174,63 @@
       (window.BeastCharts && window.BeastCharts.toTradingViewSymbol
         ? window.BeastCharts.toTradingViewSymbol(chartSymbol)
         : null) || `BINANCE:${String(chartSymbol).replace("/", "")}`;
-    if (els.chartMeta) els.chartMeta.textContent = `${chartSymbol} · ${tv}`;
-    // Optional candle meta for markers (non-blocking)
+    if (els.chartMeta) {
+      els.chartMeta.textContent = `${chartSymbol} · ${
+        chartEngineMode === "beast" ? "Beast Native" : tv
+      }`;
+    }
     try {
       const data = await fetchJson(
         `/api/market/ohlcv?symbol=${encodeURIComponent(chartSymbol)}&timeframe=1h&limit=200`
       );
       chartCandles = data.candles || [];
       if (chartEngine) {
-        const markers = window.BeastCharts.buildSignalMarkers(
+        chartEngine.loadCandles?.(chartCandles);
+        const markers = window.BeastCharts?.buildSignalMarkers?.(
           chartCandles,
           lastMarkets,
           chartSymbol
         );
-        chartEngine.setMarkers(markers);
+        chartEngine.setMarkers?.(markers);
         const market = lastMarkets.find((m) => m.symbol === chartSymbol);
         const pos = lastPositions.find((p) => p.symbol === chartSymbol);
-        chartEngine.applyMarketRow(market, pos);
+        chartEngine.applyMarketRow?.(market, pos);
       }
       if (els.chartMeta && chartCandles.length) {
-        els.chartMeta.textContent = `${chartSymbol} · ${tv} · ${chartCandles.length} bars`;
+        els.chartMeta.textContent = `${chartSymbol} · ${
+          chartEngineMode === "beast" ? "Beast Native" : tv
+        } · ${chartCandles.length} bars`;
       }
     } catch (_) {
-      /* TradingView widget remains the primary chart */
+      /* chart engines remain primary */
     }
+  }
+
+  function setChartEngine(mode) {
+    chartEngineMode = mode === "tradingview" ? "tradingview" : "beast";
+    localStorage.setItem("beast_chart_engine", chartEngineMode);
+    const beastEl = document.getElementById("beast-chart");
+    const tvEl = document.getElementById("tv-chart");
+    document.querySelectorAll("[data-chart-engine]").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.chartEngine === chartEngineMode);
+    });
+    if (chartEngineMode === "beast") {
+      beastEl?.classList.remove("hidden");
+      tvEl?.classList.add("hidden");
+      if (!beastEngine && window.BeastNativeChart) {
+        beastEngine = window.BeastNativeChart.createBeastChart("beast-chart");
+      }
+      chartEngine = beastEngine;
+    } else {
+      tvEl?.classList.remove("hidden");
+      beastEl?.classList.add("hidden");
+      if (!tvEngine && window.BeastCharts) {
+        tvEngine = window.BeastCharts.createChartEngine("tv-chart");
+      }
+      chartEngine = tvEngine;
+    }
+    if (chartEngine) chartEngine.setSymbol?.(chartSymbol);
+    loadChart(chartSymbol);
   }
 
   function syncChartFromSnapshot(msg) {
@@ -562,15 +601,21 @@
 
   function renderHistory(payload) {
     const trades = payload.trades || [];
-    els.historyMeta.textContent = `${payload.count || 0} total`;
+    els.historyMeta.textContent = `${payload.count || 0} total · audit log`;
     if (!trades.length) {
-      els.historyBody.innerHTML = `<tr><td colspan="7" class="empty">No closed trades yet</td></tr>`;
+      els.historyBody.innerHTML = `<tr><td colspan="8" class="empty">No closed trades yet</td></tr>`;
       return;
     }
     els.historyBody.innerHTML = trades
       .slice(0, 20)
       .map((t) => {
         const pnl = Number(t.pnl_usd || 0);
+        const badge =
+          pnl > 0
+            ? `<span class="pnl-badge profit">PROFIT</span>`
+            : pnl < 0
+              ? `<span class="pnl-badge loss">LOSS</span>`
+              : `<span class="pnl-badge">FLAT</span>`;
         return `
       <tr class="fade-in">
         <td data-label="Time">${t.timestamp || "—"}</td>
@@ -579,10 +624,83 @@
         <td data-label="Entry">${fmt(t.entry_price)}</td>
         <td data-label="Exit">${fmt(t.exit_price)}</td>
         <td data-label="PnL" class="${pnlClass(pnl)}">${money(pnl)}</td>
+        <td data-label="Badge">${badge}</td>
         <td data-label="Reason">${t.exit_reason || "—"}</td>
       </tr>`;
       })
       .join("");
+  }
+
+  function renderNews(feed) {
+    const box = document.getElementById("news-feed");
+    const meta = document.getElementById("news-meta");
+    if (!box) return;
+    const items = feed?.items || [];
+    if (meta) {
+      meta.textContent = `${items.length} stories · score ${fmt(feed?.sentiment_score, 1)}`;
+    }
+    if (!items.length) {
+      box.innerHTML = `<div class="empty text-mist text-sm">No headlines yet</div>`;
+      return;
+    }
+    box.innerHTML = items
+      .slice(0, 20)
+      .map((n) => {
+        const badge = String(n.badge || "Neutral").toLowerCase();
+        const title = n.title || "Untitled";
+        const href = n.link || "#";
+        return `<article class="news-item">
+          <span class="news-badge ${badge}">${n.badge || "Neutral"}</span>
+          <div class="min-w-0">
+            <a class="text-sm text-white hover:text-teal" href="${href}" target="_blank" rel="noopener">${title}</a>
+            <div class="text-[11px] text-mist mt-1">${n.source || "wire"} · ${n.published || ""}</div>
+          </div>
+        </article>`;
+      })
+      .join("");
+  }
+
+  function updateManualLiq() {
+    const lev = Number(document.getElementById("manual-leverage")?.value || 10);
+    const side = document.getElementById("manual-side")?.value || "BUY";
+    const label = document.getElementById("lev-label");
+    if (label) label.textContent = `${lev}x`;
+    const market = lastMarkets.find((m) => m.symbol === (document.getElementById("manual-symbol")?.value || chartSymbol));
+    const price = Number(market?.price || lastMarkets[0]?.price || 0);
+    const liqEl = document.getElementById("manual-liq");
+    if (!liqEl || !(price > 0) || !(lev > 0)) {
+      if (liqEl) liqEl.textContent = "—";
+      return;
+    }
+    const liq = side === "BUY" ? price * (1 - 0.9 / lev) : price * (1 + 0.9 / lev);
+    liqEl.textContent = fmt(liq, price >= 100 ? 2 : 4);
+  }
+
+  async function refreshQuant() {
+    try {
+      const data = await fetchJson(`/api/quant/snapshot?symbol=${encodeURIComponent(chartSymbol)}`);
+      const q = data.quant || {};
+      const vpin = q.vpin || {};
+      const regime = q.regime || {};
+      const br = q.circuit_breaker || {};
+      const hft = data.hft || {};
+      const elV = document.getElementById("q-vpin");
+      const elR = document.getElementById("q-regime");
+      const elB = document.getElementById("q-breaker");
+      const elH = document.getElementById("q-hft-lat");
+      if (elV) elV.textContent = `${vpin.label || "—"} · ${fmt(vpin.vpin, 3)}`;
+      if (elR) elR.textContent = regime.label || "—";
+      if (elB) {
+        elB.textContent = br.tripped ? "TRIPPED" : "OK";
+        elB.className = `mini-value text-sm ${br.tripped ? "text-rose" : "text-teal"}`;
+      }
+      if (elH) elH.textContent = `${fmt(hft.stats?.last_latency_ms, 3)} ms`;
+      hftEnabled = !!hft.enabled;
+      const btn = document.getElementById("btn-hft-toggle");
+      if (btn) btn.textContent = `HFT Scalper: ${hftEnabled ? "ON" : "OFF"}`;
+    } catch (_) {
+      /* ignore */
+    }
   }
 
   function renderStats(portfolio) {
@@ -722,7 +840,7 @@
     populatePairSelect();
     populateChartSymbols(SEED_TOP_50);
     try {
-      const data = await fetchJson("/api/scanner/pairs?limit=50");
+      const data = await fetchJson("/api/scanner/pairs?limit=250");
       if (data.pairs && data.pairs.length) {
         universe = data.pairs;
         populatePairSelect();
@@ -736,7 +854,7 @@
 
   async function refreshSecondary() {
     try {
-      const [sentiment, blogs, copy] = await Promise.all([
+      const [sentiment, blogs, copy, news] = await Promise.all([
         fetchJson("/api/sentiment"),
         fetchJson("/api/seo/blogs?limit=20&generate=false"),
         fetchJson("/api/copy-trading/followers").catch(() => ({
@@ -746,10 +864,14 @@
           total_follower_net_pnl: 0,
           profit_share_pct: 15,
         })),
+        fetchJson("/api/news/feed?limit=25").catch(() => ({ items: [] })),
       ]);
       renderSentiment(sentiment);
       renderSeo(blogs);
       renderCopy(copy);
+      renderNews(news);
+      await refreshQuant();
+      updateManualLiq();
     } catch (err) {
       console.error(err);
     }
@@ -998,6 +1120,82 @@
     });
   }
 
+  document.querySelectorAll("[data-chart-engine]").forEach((btn) => {
+    btn.addEventListener("click", () => setChartEngine(btn.dataset.chartEngine));
+  });
+
+  document.querySelectorAll("[data-desk-mode]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      deskMode = btn.dataset.deskMode || "auto";
+      document.querySelectorAll("[data-desk-mode]").forEach((b) => {
+        b.classList.toggle("active", b.dataset.deskMode === deskMode);
+        b.classList.toggle("secondary", b.dataset.deskMode !== deskMode);
+      });
+      document.getElementById("manual-desk")?.classList.toggle("hidden", deskMode !== "manual");
+    });
+  });
+
+  document.querySelectorAll("[data-margin]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      marginMode = btn.dataset.margin || "isolated";
+      document.querySelectorAll("[data-margin]").forEach((b) => {
+        b.classList.toggle("active", b.dataset.margin === marginMode);
+      });
+      updateManualLiq();
+    });
+  });
+
+  document.getElementById("manual-leverage")?.addEventListener("input", updateManualLiq);
+  document.getElementById("manual-side")?.addEventListener("change", updateManualLiq);
+  document.getElementById("manual-symbol")?.addEventListener("change", updateManualLiq);
+
+  document.getElementById("btn-hft-toggle")?.addEventListener("click", async () => {
+    try {
+      const next = !hftEnabled;
+      const res = await fetchJson("/api/hft/toggle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: next }),
+      });
+      hftEnabled = !!res.enabled;
+      document.getElementById("btn-hft-toggle").textContent = `HFT Scalper: ${
+        hftEnabled ? "ON" : "OFF"
+      }`;
+    } catch (err) {
+      els.footerClock.textContent = `HFT toggle failed: ${err.message}`;
+    }
+  });
+
+  document.getElementById("btn-manual-submit")?.addEventListener("click", async () => {
+    const msg = document.getElementById("manual-msg");
+    try {
+      const body = {
+        symbol: document.getElementById("manual-symbol")?.value || chartSymbol,
+        side: document.getElementById("manual-side")?.value || "BUY",
+        notional: Number(document.getElementById("manual-notional")?.value || 50),
+        leverage: Number(document.getElementById("manual-leverage")?.value || 10),
+        margin_mode: marginMode,
+      };
+      const res = await fetchJson("/api/desk/manual-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (msg) {
+        msg.textContent = `Order accepted · liq ${fmt(res.liquidation_price)} · ${
+          res.order?.status || "ok"
+        }`;
+        msg.className = "text-xs text-teal mt-2";
+      }
+      await refresh();
+    } catch (err) {
+      if (msg) {
+        msg.textContent = err.message || "Order failed";
+        msg.className = "text-xs text-rose mt-2";
+      }
+    }
+  });
+
   (async () => {
     // Instant UI: seed dropdown / chart symbols before network.
     populatePairSelect();
@@ -1034,12 +1232,9 @@
       ...SEED_TOP_50,
       ...universe.map((p) => p.symbol),
     ]);
-    if (window.BeastCharts) {
-      chartEngine = window.BeastCharts.createChartEngine("tv-chart");
-    }
     chartSymbol = watchlist[0] || "BTC/USDT";
     if (els.chartSymbol) els.chartSymbol.value = chartSymbol;
-    await loadChart(chartSymbol);
+    setChartEngine(chartEngineMode);
     connectMarketWs();
     connectBotWs();
     await refreshSecondary();

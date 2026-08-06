@@ -14,6 +14,7 @@ from execution_engine import ExecutionEngine
 from main import evaluate_universe, maybe_execute
 from market_data import MarketDataEngine
 from risk_manager import DEFAULT_ACCOUNT_BALANCE, RiskManager
+from hft_scalper import hft_scalper
 from copy_trader import copy_trader
 from seo_generator import seo_generator
 from sentiment_engine import sentiment_engine
@@ -38,6 +39,7 @@ class TradingBotService:
         )
         self.market = MarketDataEngine()
         self.signal_gen = SignalGenerator()
+        hft_scalper.execution = self.execution
         self.pairs = list(config.DEFAULT_TRADING_PAIRS)
         self.timeframe = config.DEFAULT_TIMEFRAME
         self.interval = config.LOOP_INTERVAL_SECONDS

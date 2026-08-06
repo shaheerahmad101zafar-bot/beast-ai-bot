@@ -1,13 +1,12 @@
 """
-Beast AI — Curated top-50 Binance USDT futures seed universe.
-
-Used to pre-populate the scanner dropdown / watchlist grid with zero
-network latency before live CCXT volume ranking refreshes.
+Beast AI — Universe seed + Binance Futures exchangeInfo loader (200+ USDT pairs).
 """
 
 from __future__ import annotations
 
 from typing import Any
+
+import requests
 
 # Top liquid Binance USDT-M perpetual bases (display as BASE/USDT).
 TOP_50_USDT_PAIRS: list[str] = [
@@ -63,6 +62,9 @@ TOP_50_USDT_PAIRS: list[str] = [
     "ONDO/USDT",
 ]
 
+BINANCE_FAPI_EXCHANGE_INFO = "https://fapi.binance.com/fapi/v1/exchangeInfo"
+BINANCE_FAPI_TICKER_24H = "https://fapi.binance.com/fapi/v1/ticker/24hr"
+
 
 def seed_pair_rows() -> list[dict[str, Any]]:
     """Build scanner-compatible pair dicts for the seeded universe."""
@@ -75,7 +77,6 @@ def seed_pair_rows() -> list[dict[str, Any]]:
                 "ccxt_symbol": f"{symbol}:USDT",
                 "base": base,
                 "quote": "USDT",
-                # Pseudo volume rank so seeds sort in curated order until live refresh.
                 "quote_volume": float(50_000_000 - i * 100_000),
                 "last": 0.0,
                 "percentage": 0.0,
@@ -83,3 +84,66 @@ def seed_pair_rows() -> list[dict[str, Any]]:
             }
         )
     return rows
+
+
+def fetch_all_usdt_futures_pairs(limit: int = 250) -> list[dict[str, Any]]:
+    """
+    Dynamically load USDT-M perpetual symbols from Binance /fapi/v1/exchangeInfo
+    and enrich with 24h quote volume when available.
+    """
+    info = requests.get(BINANCE_FAPI_EXCHANGE_INFO, timeout=20)
+    info.raise_for_status()
+    payload = info.json()
+    symbols_meta = payload.get("symbols") or []
+
+    volume_map: dict[str, dict[str, float]] = {}
+    try:
+        tickers = requests.get(BINANCE_FAPI_TICKER_24H, timeout=20)
+        tickers.raise_for_status()
+        for t in tickers.json() or []:
+            sym = str(t.get("symbol") or "")
+            volume_map[sym] = {
+                "quote_volume": float(t.get("quoteVolume") or 0),
+                "last": float(t.get("lastPrice") or 0),
+                "percentage": float(t.get("priceChangePercent") or 0),
+            }
+    except Exception:
+        volume_map = {}
+
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for m in symbols_meta:
+        if str(m.get("contractType") or "").upper() != "PERPETUAL":
+            continue
+        if str(m.get("quoteAsset") or "").upper() != "USDT":
+            continue
+        if str(m.get("status") or "").upper() != "TRADING":
+            continue
+        raw = str(m.get("symbol") or "")
+        base = str(m.get("baseAsset") or "")
+        if not raw or not base or base in seen:
+            continue
+        seen.add(base)
+        display = f"{base}/USDT"
+        stats = volume_map.get(raw) or {}
+        rows.append(
+            {
+                "symbol": display,
+                "ccxt_symbol": f"{display}:USDT",
+                "base": base,
+                "quote": "USDT",
+                "quote_volume": float(stats.get("quote_volume") or 0),
+                "last": float(stats.get("last") or 0),
+                "percentage": float(stats.get("percentage") or 0),
+                "info_type": "fapi_exchangeInfo",
+                "binance_symbol": raw,
+            }
+        )
+
+    rows.sort(key=lambda r: r.get("quote_volume") or 0, reverse=True)
+    # Ensure curated seeds remain present near the top if missing from feed
+    have = {r["symbol"].upper() for r in rows}
+    for seed in seed_pair_rows():
+        if seed["symbol"].upper() not in have:
+            rows.append(seed)
+    return rows[: max(1, limit)]

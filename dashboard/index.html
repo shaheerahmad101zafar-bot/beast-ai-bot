@@ -139,14 +139,70 @@
       <div class="panel-head">
         <h2 class="panel-title">Live Chart</h2>
         <div class="flex items-center gap-3 flex-wrap">
+          <div class="chart-engine-toggle" role="group" aria-label="Chart engine">
+            <button type="button" class="eng-btn active" data-chart-engine="beast" id="btn-engine-beast">Beast Native</button>
+            <button type="button" class="eng-btn" data-chart-engine="tradingview" id="btn-engine-tv">TradingView</button>
+          </div>
           <select id="chart-symbol" class="watch-input !w-auto !py-1.5 text-sm"></select>
           <span id="ws-status" class="ws-pill idle">WS connecting…</span>
           <span id="chart-meta" class="panel-meta">Waiting for stream…</span>
         </div>
       </div>
       <div class="relative px-1 pb-3">
-        <div id="tv-chart" class="tv-chart h-[350px] md:h-[500px]" aria-label="TradingView chart"></div>
+        <div id="tv-chart" class="tv-chart h-[350px] md:h-[500px] hidden" aria-label="TradingView chart"></div>
+        <div id="beast-chart" class="tv-chart h-[350px] md:h-[500px]" aria-label="Beast Native Canvas chart"></div>
         <div id="activity-feed" class="activity-feed" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <section class="panel mb-6" id="desk-mode-panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Trading Desk Mode</h2>
+        <span class="panel-meta">Auto-Pilot AI · Manual Pro Order Desk</span>
+      </div>
+      <div class="px-1 pb-4 grid gap-4">
+        <div class="flex flex-wrap gap-2">
+          <button type="button" class="action-btn desk-mode-btn active" data-desk-mode="auto" id="btn-mode-auto">Auto-Pilot AI Mode</button>
+          <button type="button" class="action-btn secondary desk-mode-btn" data-desk-mode="manual" id="btn-mode-manual">Manual Pro Order Desk</button>
+          <button type="button" class="action-btn secondary" id="btn-hft-toggle">HFT Scalper: OFF</button>
+        </div>
+        <div id="manual-desk" class="manual-desk hidden glass-panel">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <label class="form-field"><span>Symbol</span><input id="manual-symbol" type="text" value="BTC/USDT" /></label>
+            <label class="form-field"><span>Side</span>
+              <select id="manual-side"><option value="BUY">Long</option><option value="SELL">Short</option></select>
+            </label>
+            <label class="form-field"><span>Notional (USDT)</span><input id="manual-notional" type="number" min="5" value="50" /></label>
+            <label class="form-field"><span>Leverage <b id="lev-label">10x</b></span>
+              <input id="manual-leverage" type="range" min="1" max="125" value="10" />
+            </label>
+          </div>
+          <div class="flex flex-wrap items-center gap-3 mt-3">
+            <div class="margin-toggle" role="group">
+              <button type="button" class="pay-opt active" data-margin="isolated">Isolated</button>
+              <button type="button" class="pay-opt" data-margin="cross">Cross</button>
+            </div>
+            <div class="text-sm text-mist">Liq Price: <span id="manual-liq" class="text-teal font-semibold">—</span></div>
+            <button type="button" class="action-btn" id="btn-manual-submit">Submit Order</button>
+          </div>
+          <p id="manual-msg" class="text-xs text-mist mt-2"></p>
+        </div>
+        <div id="quant-strip" class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div class="mini-stat"><div class="mini-label">VPIN Toxicity</div><div id="q-vpin" class="mini-value">—</div></div>
+          <div class="mini-stat"><div class="mini-label">Regime</div><div id="q-regime" class="mini-value text-sm">—</div></div>
+          <div class="mini-stat"><div class="mini-label">Circuit Breaker</div><div id="q-breaker" class="mini-value text-sm">OK</div></div>
+          <div class="mini-stat"><div class="mini-label">HFT Latency</div><div id="q-hft-lat" class="mini-value text-sm">—</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel mb-6" id="news-panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Live Crypto News &amp; Announcements</h2>
+        <span id="news-meta" class="panel-meta">AI sentiment badges</span>
+      </div>
+      <div id="news-feed" class="news-feed px-1 pb-4">
+        <div class="empty text-mist text-sm">Loading wire…</div>
       </div>
     </section>
 
@@ -249,7 +305,7 @@
 
       <section class="panel mb-8 panel-with-pwa-pad">
         <div class="panel-head">
-          <h2 class="panel-title">Recent Trade History</h2>
+          <h2 class="panel-title">Trade Audit Log</h2>
           <span id="history-meta" class="panel-meta">—</span>
         </div>
         <div class="table-scroll overflow-x-auto">
@@ -262,11 +318,12 @@
                 <th>Entry</th>
                 <th>Exit</th>
                 <th>PnL</th>
+                <th>Badge</th>
                 <th>Reason</th>
               </tr>
             </thead>
             <tbody id="history-body">
-              <tr><td colspan="7" class="empty">No closed trades yet</td></tr>
+              <tr><td colspan="8" class="empty">No closed trades yet</td></tr>
             </tbody>
           </table>
         </div>
@@ -438,6 +495,7 @@
   </div>
 
   <script src="/static/social.js"></script>
+  <script src="/static/js/beast-chart.js"></script>
   <script src="/static/charts.js"></script>
   <script src="/static/app.js"></script>
   <script src="/static/pwa.js"></script>

@@ -13,6 +13,7 @@ const PRECACHE_URLS = [
   "/static/landing.js",
   "/static/pricing.js",
   "/static/charts.js",
+  "/static/js/beast-chart.js",
   "/static/pwa.js",
   "/static/icons/icon-192.png",
   "/static/icons/icon-512.png",

@@ -195,8 +195,10 @@ BACKUP_DIR: Final[str] = os.getenv("BACKUP_DIR", "backups")
 BACKUP_RETAIN_COUNT: Final[int] = int(os.getenv("BACKUP_RETAIN_COUNT", "14"))
 BACKUP_INTERVAL_SECONDS: Final[float] = float(os.getenv("BACKUP_INTERVAL_SECONDS", "86400"))
 BACKUP_KEY_ENV: Final[str] = "BACKUP_KEY"
-SCANNER_TOP_PAIRS: Final[int] = 120
+SCANNER_TOP_PAIRS: Final[int] = 250
 SCANNER_GLOBAL_DEFAULT: Final[int] = 50
 SCANNER_CACHE_SECONDS: Final[int] = 300
 # Curated zero-latency seed size (see scanner.TOP_50_USDT_PAIRS)
 SCANNER_SEED_PAIRS: Final[int] = 50
+MAX_DAILY_DRAWDOWN: Final[float] = 0.05
+HFT_ENABLED_DEFAULT: Final[bool] = False

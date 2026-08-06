@@ -200,6 +200,57 @@ class SentimentEngine:
             "note": None,
         }
 
+    def get_news_feed(self, limit: int = 25) -> dict[str, Any]:
+        """Real-time crypto news + market wire with AI sentiment badges."""
+        sentiment = self.get_sentiment()
+        headlines = list(sentiment.get("headlines") or [])[:limit]
+        extra: list[dict[str, Any]] = []
+        try:
+            bn = feedparser.parse("https://news.treeofalpha.com/rss")
+            for e in (bn.entries or [])[:12]:
+                title = str(getattr(e, "title", "") or "")
+                if not title:
+                    continue
+                raw = score_headline(title)
+                badge = "Bullish" if raw > 0.4 else ("Bearish" if raw < -0.4 else "Neutral")
+                extra.append(
+                    {
+                        "title": title,
+                        "link": str(getattr(e, "link", "") or ""),
+                        "published": str(getattr(e, "published", "") or ""),
+                        "source": "market_wire",
+                        "raw_score": round(raw, 3),
+                        "badge": badge,
+                        "tone": badge.lower(),
+                    }
+                )
+        except Exception:
+            extra = []
+
+        merged = []
+        for h in headlines:
+            tone = str(h.get("tone") or "neutral")
+            badge = "Bullish" if tone == "bullish" else ("Bearish" if tone == "bearish" else "Neutral")
+            merged.append(
+                {
+                    "title": h.get("title") or h.get("summary") or "",
+                    "link": h.get("link") or "",
+                    "published": h.get("published") or "",
+                    "source": h.get("source") or "rss",
+                    "raw_score": h.get("raw_score"),
+                    "badge": badge,
+                    "tone": tone,
+                }
+            )
+        merged.extend(extra)
+        return {
+            "ok": True,
+            "sentiment_score": sentiment.get("score"),
+            "sentiment_label": sentiment.get("label"),
+            "items": merged[:limit],
+            "updated_at": _utc_now(),
+        }
+
     @staticmethod
     def label_for_score(score: float) -> str:
         if score < 20:

@@ -51,6 +51,8 @@ from oauth_auth import (
 from admin_settings import admin_settings
 from backup_engine import backup_engine
 from billing import billing
+from hft_scalper import hft_scalper
+from quantum_engine import quantum_engine
 from bot_service import bot_service
 from cms_engine import cms_engine
 from copy_trader import copy_trader
@@ -759,6 +761,103 @@ async def api_sentiment(
 ) -> dict[str, Any]:
     snapshot = await asyncio.to_thread(sentiment_engine.get_sentiment, refresh)
     return snapshot
+
+
+@app.get("/api/news/feed")
+async def api_news_feed(
+    limit: int = Query(default=25, ge=1, le=80),
+) -> dict[str, Any]:
+    return await asyncio.to_thread(sentiment_engine.get_news_feed, limit)
+
+
+@app.get("/api/quant/snapshot")
+async def api_quant_snapshot(
+    symbol: str = Query(default="BTC/USDT"),
+    user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    portfolio = bot_service.get_portfolio()
+    equity = float(portfolio.get("equity") or 1000)
+    quantum_engine.update_circuit_breaker(equity)
+    return {
+        "ok": True,
+        "user_id": user.id,
+        "quant": quantum_engine.snapshot(symbol),
+        "hft": hft_scalper.get_status(),
+    }
+
+
+@app.get("/api/hft/status")
+async def api_hft_status(user: User = Depends(get_current_user)) -> dict[str, Any]:
+    return {"ok": True, "user_id": user.id, **hft_scalper.get_status()}
+
+
+@app.post("/api/hft/toggle")
+async def api_hft_toggle(
+    body: ToggleRequest | None = None,
+    user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    enabled = True if body is None or body.enabled is None else bool(body.enabled)
+    if hft_scalper.execution is None:
+        hft_scalper.execution = bot_service.execution
+    result = hft_scalper.set_enabled(enabled)
+    return {"ok": True, "user_id": user.id, **result, **hft_scalper.get_status()}
+
+
+@app.post("/api/desk/manual-order")
+async def api_desk_manual_order(
+    body: dict[str, Any],
+    user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Manual Pro Order Desk — paper/live order with leverage + margin mode."""
+    symbol = str(body.get("symbol") or "BTC/USDT").upper().replace("-", "/")
+    if "/" not in symbol and symbol.endswith("USDT"):
+        symbol = f"{symbol[:-4]}/USDT"
+    side = str(body.get("side") or "BUY").upper()
+    leverage = float(body.get("leverage") or 5)
+    leverage = max(1.0, min(125.0, leverage))
+    margin_mode = str(body.get("margin_mode") or "isolated").lower()
+    notional = float(body.get("notional") or 50)
+    price = float(body.get("price") or 0)
+    if price <= 0:
+        # best-effort mark from status
+        status = bot_service.get_status()
+        for m in status.get("markets") or []:
+            if m.get("symbol") == symbol and m.get("price"):
+                price = float(m["price"])
+                break
+    if price <= 0:
+        raise HTTPException(status_code=400, detail="Mark price unavailable")
+    size = notional / price
+    # Liq price approx
+    if side in {"BUY", "LONG"}:
+        liq = price * (1 - 0.9 / leverage)
+        sl = price * (1 - 0.01)
+        tp = price * (1 + 0.02)
+        signal = "BUY"
+    else:
+        liq = price * (1 + 0.9 / leverage)
+        sl = price * (1 + 0.01)
+        tp = price * (1 - 0.02)
+        signal = "SELL"
+    if not quantum_engine.trading_allowed():
+        raise HTTPException(status_code=423, detail="Circuit breaker tripped — trading halted")
+    result = bot_service.execution.place_order(
+        symbol=symbol,
+        signal=signal,
+        size_units=size,
+        leverage=leverage,
+        market_price=price,
+        stop_loss=sl,
+        take_profit=tp,
+    )
+    return {
+        "ok": True,
+        "user_id": user.id,
+        "margin_mode": margin_mode,
+        "leverage": leverage,
+        "liquidation_price": round(liq, 6),
+        "order": result,
+    }
 
 
 @app.get("/api/seo/blogs")
