@@ -10,9 +10,12 @@ from datetime import datetime, timezone
 from typing import Any
 
 import config
+from ai_council import ai_council
 from execution_engine import ExecutionEngine
 from hedging_engine import hedging_engine
+from liquidation_hunter import liquidation_hunter
 from main import evaluate_universe, maybe_execute
+from macro_guard import macro_guard
 from market_data import MarketDataEngine
 from risk_manager import DEFAULT_ACCOUNT_BALANCE, RiskManager
 from hft_scalper import hft_scalper
@@ -163,6 +166,13 @@ class TradingBotService:
                                 f"PANIC BREAKER -> closed {len(panic_closed)} position(s) to USDT because sentiment hit {sentiment_score:.1f}"
                             )
 
+                macro_action = macro_guard.apply_guard(self.execution, self._mark_prices)
+                if macro_action.get("acted"):
+                    events.append(
+                        f"MACRO GUARD -> {macro_action.get('action')} | "
+                        f"shock {float(macro_action.get('shock_score') or 0):.1f}"
+                    )
+
                 # Ensure today's SEO article exists (idempotent)
                 if self._cycle == 1 or self._cycle % 30 == 0:
                     try:
@@ -233,6 +243,14 @@ class TradingBotService:
                         events.append(f"COPY close error: {copy_exc}")
 
                 master_equity = max(self.execution.equity(mark_prices), 1.0)
+                try:
+                    bounce = liquidation_hunter.maybe_bounce_order(self.execution, mark_prices)
+                    if bounce:
+                        events.append(
+                            f"LIQ HUNTER -> {bounce['direction']} {bounce['symbol']} bounce order deployed"
+                        )
+                except Exception as liq_exc:  # noqa: BLE001
+                    events.append(f"LIQ HUNTER error: {liq_exc}")
                 for row in scan_rows:
                     result = maybe_execute(
                         self.execution, row, min_confidence=self.min_confidence
@@ -368,6 +386,8 @@ class TradingBotService:
                         "position_size_notional": float(row.get("position_size_notional") or 0.0),
                         "sentiment_score": row.get("sentiment_score"),
                         "sentiment_blocked": bool(row.get("sentiment_blocked")),
+                        "funding_rate": float(row.get("funding_rate") or 0.0),
+                        "council": row.get("ai_council") or ai_council.vote("HOLD", 0.0, sentiment_score=None, regime={}, vpin={}, funding_rate=0.0, depth_guard={"ok": True}),
                     }
                 )
 
@@ -386,6 +406,8 @@ class TradingBotService:
                 "sentiment_label": sentiment.get("label"),
                 "events": list(self._latest_events),
                 "hedge": hedging_engine.snapshot(),
+                "macro_guard": macro_guard.snapshot(),
+                "liquidation_hunter": liquidation_hunter.snapshot(),
                 "error": self._last_error,
                 "server_time": _utc_now(),
             }

@@ -59,6 +59,8 @@ from hft_scalper import hft_scalper
 from execution_ws import execution_ws
 from genetic_tuner import genetic_tuner
 from hedging_engine import hedging_engine
+from liquidation_hunter import liquidation_hunter
+from macro_guard import macro_guard
 from news_fetcher import news_fetcher
 from quantum_engine import quantum_engine
 from bot_service import bot_service
@@ -172,6 +174,7 @@ async def lifespan(app: FastAPI):
     await ws_hub.start()
     await arbitrage_scanner.start()
     await genetic_tuner.start()
+    await liquidation_hunter.start()
     await backup_engine.start()
     # Upgrade seeded top-50 pairs to live Binance volume ranking in background.
     try:
@@ -185,6 +188,7 @@ async def lifespan(app: FastAPI):
     await bot_service.stop()
     await genetic_tuner.stop()
     await arbitrage_scanner.stop()
+    await liquidation_hunter.stop()
     await backup_engine.stop()
     await ws_hub.stop()
     bot_service.shutdown()
@@ -865,6 +869,8 @@ async def api_quant_snapshot(
         "arbitrage": arbitrage_scanner.snapshot(),
         "genetic_tuner": genetic_tuner.snapshot(),
         "execution_ws": execution_ws.status(),
+        "macro_guard": macro_guard.snapshot(),
+        "liquidation_hunter": liquidation_hunter.snapshot(),
     }
 
 

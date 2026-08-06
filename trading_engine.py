@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 import requests
 
+from ai_council import ai_council
 import config
 from quantum_engine import quantum_engine
 from strategy import SignalGenerator
@@ -265,6 +266,18 @@ class TradingEngine:
         reward = 0.05 if classic == conf_signal and final != "HOLD" else -0.01
         quantum_engine.rl_observe(state, final if final != "HOLD" else "HOLD", reward, state)
         policy = quantum_engine.rl_policy(state)
+        council = ai_council.vote(
+            final,
+            conf,
+            sentiment_score=sentiment_score,
+            regime=regime,
+            vpin=quantum_engine.toxicity_label(symbol),
+            funding_rate=funding_rate,
+            depth_guard=depth_guard,
+        )
+        if final in {"BUY", "SELL"} and not council["approved"]:
+            final = "HOLD"
+            conf = min(conf, 22.0)
 
         return {
             **base,
@@ -285,6 +298,7 @@ class TradingEngine:
             "vpin": quantum_engine.toxicity_label(symbol),
             "funding_rate": round(funding_rate, 6),
             "depth_guard": depth_guard,
+            "ai_council": council,
             "ai_reasoning": self._build_reasoning(
                 final,
                 votes,

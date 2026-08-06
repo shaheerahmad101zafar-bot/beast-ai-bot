@@ -835,6 +835,8 @@
       const liq = q.liquidation || {};
       const br = q.circuit_breaker || {};
       const hft = data.hft || {};
+      const macro = data.macro_guard || {};
+      const liqHunter = data.liquidation_hunter || {};
       const elV = document.getElementById("q-vpin");
       const elR = document.getElementById("q-regime");
       const elB = document.getElementById("q-breaker");
@@ -854,9 +856,12 @@
           : "No map yet";
       }
       if (els.qFeed) {
-        els.qFeed.textContent = Number.isFinite(lastWsPingMs)
-          ? `Healthy · ${fmt(lastWsPingMs, 1)} ms`
-          : "Warmup";
+        const latency = Number.isFinite(lastWsPingMs) ? `${fmt(lastWsPingMs, 1)} ms` : "Warmup";
+        const macroLabel = macro.label ? `Macro ${macro.label}` : "Macro calm";
+        const liqLabel = liqHunter.last_cluster?.symbol
+          ? `Liq ${liqHunter.last_cluster.symbol}`
+          : "No liq cluster";
+        els.qFeed.textContent = `${macroLabel} · ${liqLabel} · ${latency}`;
       }
       hftEnabled = !!hft.enabled;
       const btn = document.getElementById("btn-hft-toggle");
