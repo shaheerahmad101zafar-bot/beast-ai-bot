@@ -599,6 +599,57 @@ body[data-ui-mode="simple"] #tab-billing {
   color: #fff;
 }
 
+.metric-tip {
+  margin-top: 0.35rem;
+  font-size: 0.72rem;
+  color: rgba(157, 180, 196, 0.9);
+  line-height: 1.35;
+}
+
+.stress-card,
+.reason-accordion {
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  background: rgba(7, 16, 24, 0.45);
+}
+
+.stress-card {
+  padding: 0.85rem 0.95rem;
+}
+
+.stress-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.stress-list {
+  margin-top: 0.55rem;
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.76rem;
+  color: #dbe7ef;
+}
+
+.reason-accordion {
+  margin-top: 0.45rem;
+  padding: 0.45rem 0.6rem;
+}
+
+.reason-accordion summary {
+  cursor: pointer;
+  color: var(--teal);
+  font-size: 0.72rem;
+}
+
+.reason-accordion p {
+  margin-top: 0.45rem;
+  color: var(--mist);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
 .headline-list {
   list-style: none;
   padding: 0;
@@ -691,6 +742,7 @@ body[data-ui-mode="simple"] #tab-billing {
   justify-content: center;
   text-align: center;
   white-space: nowrap;
+  touch-action: manipulation;
 }
 
 .action-btn:hover {

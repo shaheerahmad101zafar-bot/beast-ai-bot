@@ -1,5 +1,5 @@
 /* Beast AI — Phase 11 Service Worker */
-const CACHE_VERSION = "beast-ai-v11";
+const CACHE_VERSION = "beast-ai-v12";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -14,6 +14,7 @@ const PRECACHE_URLS = [
   "/static/pricing.js",
   "/static/charts.js",
   "/static/js/beast-chart.js",
+  "/static/js/chart-worker.js",
   "/static/pwa.js",
   "/static/icons/icon-192.png",
   "/static/icons/icon-512.png",

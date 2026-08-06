@@ -26,6 +26,7 @@ TRADE_FIELDS: list[str] = [
     "fees_usd",
     "exit_reason",
     "trade_id",
+    "ai_reasoning",
 ]
 
 
@@ -68,6 +69,7 @@ class TradeLogger:
             "fees_usd": float(trade.get("fees_usd") or 0.0),
             "exit_reason": trade["exit_reason"],
             "trade_id": trade.get("trade_id") or "",
+            "ai_reasoning": str(trade.get("ai_reasoning") or ""),
         }
 
         with self.csv_path.open("a", newline="", encoding="utf-8") as fh:
@@ -114,6 +116,7 @@ class TradeLogger:
                                 "fees_usd": float(row.get("fees_usd") or 0.0),
                                 "exit_reason": row.get("exit_reason") or "",
                                 "trade_id": row.get("trade_id") or "",
+                                "ai_reasoning": row.get("ai_reasoning") or "",
                             }
                         )
                     except (TypeError, ValueError):

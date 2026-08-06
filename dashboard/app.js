@@ -28,10 +28,15 @@
   let chartEngine = null;
   let tvEngine = null;
   let beastEngine = null;
+  const parseWorker =
+    typeof Worker !== "undefined" ? new Worker("/static/js/chart-worker.js") : null;
+  const workerResolvers = new Map();
+  let workerSeq = 0;
   let chartEngineMode = localStorage.getItem("beast_chart_engine") || "beast";
   let deskMode = "auto";
   let marginMode = "isolated";
   let uiMode = localStorage.getItem("beast_ui_mode") || "simple";
+  let sandboxMode = localStorage.getItem("beast_sandbox_mode") || "demo";
   let hftEnabled = false;
   let chartCandles = [];
   let chartSymbol = "BTC/USDT";
@@ -106,6 +111,7 @@
     billPayMode: document.getElementById("bill-pay-mode"),
     btnManageBilling: document.getElementById("btn-manage-billing"),
     btnRefreshBilling: document.getElementById("btn-refresh-billing"),
+    btnCopilot: document.getElementById("btn-copilot"),
     chartSymbol: document.getElementById("chart-symbol"),
     chartMeta: document.getElementById("chart-meta"),
     wsStatus: document.getElementById("ws-status"),
@@ -129,7 +135,26 @@
     leaderProfitFactor: document.getElementById("leader-profit-factor"),
     leaderDrawdown: document.getElementById("leader-drawdown"),
     leaderSymbol: document.getElementById("leader-symbol"),
+    btnStressTest: document.getElementById("btn-stress-test"),
+    stressMsg: document.getElementById("stress-msg"),
+    stressResults: document.getElementById("stress-results"),
+    copilotModal: document.getElementById("copilot-modal"),
+    copilotInput: document.getElementById("copilot-input"),
+    copilotPreview: document.getElementById("copilot-preview"),
+    btnCopilotRun: document.getElementById("btn-copilot-run"),
   };
+
+  if (parseWorker) {
+    parseWorker.onmessage = (event) => {
+      const msg = event.data || {};
+      const key = Number(msg.id || 0);
+      const resolver = workerResolvers.get(key);
+      if (resolver) {
+        workerResolvers.delete(key);
+        resolver(msg.payload);
+      }
+    };
+  }
 
   function wsUrl(path) {
     const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -159,6 +184,42 @@
         els.backtestMeta.textContent = "Compact trading view · verified card stays visible";
       }
     }
+  }
+
+  function applySandboxMode(mode) {
+    sandboxMode = mode === "live" ? "live" : "demo";
+    localStorage.setItem("beast_sandbox_mode", sandboxMode);
+    document.querySelectorAll("[data-sandbox-mode]").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.sandboxMode === sandboxMode);
+      btn.classList.toggle("secondary", btn.dataset.sandboxMode !== sandboxMode);
+    });
+    if (els.watchMeta) {
+      els.watchMeta.textContent =
+        sandboxMode === "demo"
+          ? "Risk-free $10,000 sandbox ready"
+          : "Live mode armed - connect exchange before real routing";
+    }
+  }
+
+  function parseWsPayload(raw) {
+    if (!parseWorker) {
+      try {
+        return Promise.resolve(JSON.parse(raw));
+      } catch (_) {
+        return Promise.resolve(null);
+      }
+    }
+    const id = ++workerSeq;
+    return new Promise((resolve) => {
+      workerResolvers.set(id, resolve);
+      parseWorker.postMessage({ id, type: "parse_ws", raw });
+    });
+  }
+
+  function renderReasonAccordion(reason) {
+    const text = String(reason || "").trim();
+    if (!text) return "";
+    return `<details class="reason-accordion"><summary>Why AI entered this trade?</summary><p>${text}</p></details>`;
   }
 
   function renderActivity(rows) {
@@ -442,11 +503,7 @@
       }, 15000);
     };
     marketWs.onmessage = (ev) => {
-      try {
-        handleMarketMessage(JSON.parse(ev.data));
-      } catch (_) {
-        /* ignore */
-      }
+      parseWsPayload(ev.data).then((msg) => msg && handleMarketMessage(msg));
     };
     marketWs.onclose = () => {
       if (pingLoop) {
@@ -684,7 +741,9 @@
         <td data-label="Mark">${fmt(p.mark_price)}</td>
         <td data-label="SL">${fmt(p.stop_loss)}</td>
         <td data-label="TP">${fmt(p.take_profit)}</td>
-        <td data-label="Live PnL" class="${pnlClass(upnl)}">${money(upnl)}</td>
+        <td data-label="Live PnL" class="${pnlClass(upnl)}">${money(upnl)}${renderReasonAccordion(
+          p.ai_reasoning
+        )}</td>
       </tr>`;
       })
       .join("");
@@ -716,7 +775,7 @@
         <td data-label="Exit">${fmt(t.exit_price)}</td>
         <td data-label="PnL" class="${pnlClass(pnl)}">${money(pnl)}</td>
         <td data-label="Badge">${badge}</td>
-        <td data-label="Reason">${t.exit_reason || "—"}</td>
+        <td data-label="Reason">${t.exit_reason || "—"}${renderReasonAccordion(t.ai_reasoning)}</td>
       </tr>`;
       })
       .join("");
@@ -1059,6 +1118,115 @@
     }
   }
 
+  async function runStressTest() {
+    if (!els.btnStressTest) return;
+    els.btnStressTest.disabled = true;
+    if (els.stressMsg) els.stressMsg.textContent = "Running crash scenarios…";
+    try {
+      const payload = await fetchJson("/api/simulate-stress", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shocks: [-5, -10, -20] }),
+      });
+      const rows = payload.scenarios || [];
+      els.stressResults.innerHTML = rows.length
+        ? rows
+            .map(
+              (row) => `<article class="stress-card">
+              <div class="stress-head">
+                <strong>${fmt(row.shock_pct, 0)}% shock</strong>
+                <span class="${pnlClass(row.projected_total_pnl_usd)}">${money(
+                  row.projected_total_pnl_usd
+                )}</span>
+              </div>
+              <div class="stress-list">
+                <div>Liquidation vulnerabilities: ${row.liquidation_vulnerabilities || 0}</div>
+                <div>${(row.recommendations || []).join(" ")}</div>
+              </div>
+            </article>`
+            )
+            .join("")
+        : `<div class="empty text-mist text-sm">No open positions to stress test.</div>`;
+      if (els.stressMsg) els.stressMsg.textContent = `Evaluated ${payload.position_count || 0} open positions.`;
+    } catch (err) {
+      if (els.stressMsg) els.stressMsg.textContent = err.message;
+    } finally {
+      els.btnStressTest.disabled = false;
+    }
+  }
+
+  function parseCopilotIntent(text) {
+    const input = String(text || "").trim();
+    if (!input) return null;
+    const side = /\b(long|buy)\b/i.test(input) ? "BUY" : /\b(short|sell)\b/i.test(input) ? "SELL" : "BUY";
+    const symbolMatch =
+      input.match(/\b(?:long|buy|short|sell)\s+([A-Z]{2,10})\b/i) ||
+      input.match(/\b([A-Z]{2,10})USDT\b/i) ||
+      input.match(/\b([A-Z]{2,10})\/USDT\b/i);
+    const leverageMatch = input.match(/(\d+(?:\.\d+)?)x/i);
+    const tpMatch = input.match(/tp\s*(\d+(?:\.\d+)?)%/i);
+    const sizeMatch = input.match(/(?:size|notional|usd|usdt)\s*(\d+(?:\.\d+)?)/i);
+    const symbol = normalizeSymbol(symbolMatch ? `${symbolMatch[1]}/USDT` : chartSymbol);
+    return {
+      symbol,
+      side,
+      leverage: Number(leverageMatch?.[1] || 5),
+      notional: Number(sizeMatch?.[1] || 50),
+      tpPct: Number(tpMatch?.[1] || 2),
+      raw: input,
+    };
+  }
+
+  function previewCopilotIntent() {
+    const parsed = parseCopilotIntent(els.copilotInput?.value || "");
+    if (!els.copilotPreview) return parsed;
+    if (!parsed) {
+      els.copilotPreview.textContent = "Type a command like: Long SOL 5x leverage TP 3%";
+      return null;
+    }
+    els.copilotPreview.textContent = `${parsed.side} ${parsed.symbol} · ${parsed.leverage}x · ${
+      parsed.notional
+    } USDT · TP ${parsed.tpPct}%`;
+    return parsed;
+  }
+
+  function setCopilotOpen(open) {
+    if (!els.copilotModal) return;
+    els.copilotModal.classList.toggle("hidden", !open);
+    els.copilotModal.setAttribute("aria-hidden", open ? "false" : "true");
+    if (open) setTimeout(() => els.copilotInput?.focus(), 20);
+  }
+
+  async function runCopilotIntent() {
+    const parsed = previewCopilotIntent();
+    if (!parsed) return;
+    const market = lastMarkets.find((m) => m.symbol === parsed.symbol);
+    const price = Number(market?.price || 0);
+    const tpFactor = parsed.side === "BUY" ? 1 + parsed.tpPct / 100 : 1 - parsed.tpPct / 100;
+    const result = await fetchJson("/api/desk/manual-order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        symbol: parsed.symbol,
+        side: parsed.side,
+        leverage: parsed.leverage,
+        notional: parsed.notional,
+        price,
+        margin_mode: "isolated",
+        take_profit_hint: tpFactor,
+        ai_reasoning: `Copilot intent: ${parsed.raw}`,
+      }),
+    });
+    if (els.copilotPreview) {
+      els.copilotPreview.textContent = `Executed ${parsed.side} ${parsed.symbol} · est liq ${fmt(
+        result.liquidation_price,
+        price >= 100 ? 2 : 4
+      )}`;
+    }
+    setCopilotOpen(false);
+    refresh().catch(console.error);
+  }
+
   async function refresh() {
     // Fallback REST path when WS is down
     try {
@@ -1151,6 +1319,29 @@
       runBacktest().catch(console.error);
     });
   }
+
+  document.querySelectorAll("[data-sandbox-mode]").forEach((btn) => {
+    btn.addEventListener("click", () => applySandboxMode(btn.dataset.sandboxMode));
+  });
+
+  if (els.btnStressTest) {
+    els.btnStressTest.addEventListener("click", () => runStressTest().catch(console.error));
+  }
+
+  if (els.btnCopilot) els.btnCopilot.addEventListener("click", () => setCopilotOpen(true));
+  document.querySelectorAll("[data-close-copilot]").forEach((el) => {
+    el.addEventListener("click", () => setCopilotOpen(false));
+  });
+  els.copilotInput?.addEventListener("input", previewCopilotIntent);
+  els.btnCopilotRun?.addEventListener("click", () => runCopilotIntent().catch(console.error));
+  document.addEventListener("keydown", (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+      event.preventDefault();
+      setCopilotOpen(true);
+      previewCopilotIntent();
+    }
+    if (event.key === "Escape") setCopilotOpen(false);
+  });
 
   if (els.btnManageBilling) {
     els.btnManageBilling.addEventListener("click", async () => {
@@ -1417,6 +1608,7 @@
     }
     if (tab) switchTab(tab);
     applyUiMode(uiMode);
+    applySandboxMode(sandboxMode);
     await loadUniverse().catch((err) => {
       els.watchMeta.textContent = `Using seeded top 50 · ${err.message}`;
     });
@@ -1432,6 +1624,7 @@
     connectBotWs();
     await refreshSecondary();
     await runBacktest().catch(console.error);
+    await runStressTest().catch(console.error);
     if (tab === "billing") await loadBilling().catch(console.error);
     // Slow REST for non-stream panels; trading desk is WebSocket-driven
     setInterval(refreshSecondary, SLOW_REFRESH_MS);

@@ -73,6 +73,7 @@ class ExecutionEngine:
         market_price: float,
         stop_loss: float,
         take_profit: float,
+        metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Place a market order from a strategy signal.
@@ -95,6 +96,7 @@ class ExecutionEngine:
                 market_price=market_price,
                 stop_loss=stop_loss,
                 take_profit=take_profit,
+                metadata=metadata,
             )
         return self._live_open(
             symbol=symbol,
@@ -104,6 +106,7 @@ class ExecutionEngine:
             market_price=market_price,
             stop_loss=stop_loss,
             take_profit=take_profit,
+            metadata=metadata,
         )
 
     def monitor_positions(
@@ -213,6 +216,7 @@ class ExecutionEngine:
         market_price: float,
         stop_loss: float,
         take_profit: float,
+        metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         if symbol in self.positions:
             raise RuntimeError(f"Position already open for {symbol}")
@@ -246,6 +250,7 @@ class ExecutionEngine:
             "mark_price": round(fill_price, 8),
             "unrealized_pnl": 0.0,
             "opened_at": _utc_now(),
+            "ai_reasoning": str((metadata or {}).get("ai_reasoning") or ""),
         }
         self.positions[symbol] = position
         self._save_portfolio()
@@ -293,6 +298,7 @@ class ExecutionEngine:
             "fees_usd": round(total_fees, 6),
             "exit_reason": exit_reason,
             "gross_pnl": round(gross_pnl, 4),
+            "ai_reasoning": str(pos.get("ai_reasoning") or ""),
         }
 
         del self.positions[symbol]

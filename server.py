@@ -129,6 +129,10 @@ class BacktestRequest(BaseModel):
     starting_balance: float = Field(default=1000.0, ge=100.0, le=1_000_000.0)
 
 
+class StressTestRequest(BaseModel):
+    shocks: list[float] = Field(default_factory=lambda: [-5.0, -10.0, -20.0])
+
+
 class AdminSettingsUpdateRequest(BaseModel):
     payments: dict[str, Any] | None = None
     social: dict[str, Any] | None = None
@@ -858,6 +862,7 @@ async def api_desk_manual_order(
     margin_mode = str(body.get("margin_mode") or "isolated").lower()
     notional = float(body.get("notional") or 50)
     price = float(body.get("price") or 0)
+    ai_reasoning = str(body.get("ai_reasoning") or "Manual order from dashboard")
     if price <= 0:
         # best-effort mark from status
         status = bot_service.get_status()
@@ -889,6 +894,7 @@ async def api_desk_manual_order(
         market_price=price,
         stop_loss=sl,
         take_profit=tp,
+        metadata={"ai_reasoning": ai_reasoning},
     )
     return {
         "ok": True,
@@ -1032,6 +1038,59 @@ async def api_backtest(
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("detail") or "Backtest failed")
     return {"ok": True, "user_id": user.id, **result}
+
+
+@app.post("/api/simulate-stress")
+async def api_simulate_stress(
+    body: StressTestRequest | None = None,
+    user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    payload = body or StressTestRequest()
+    portfolio = bot_service.get_portfolio()
+    positions = portfolio.get("positions") or []
+    shocks = [float(s) for s in (payload.shocks or [-5.0, -10.0, -20.0])]
+    scenarios: list[dict[str, Any]] = []
+    for shock in shocks:
+        shocked_positions: list[dict[str, Any]] = []
+        total = 0.0
+        liquidations = 0
+        for pos in positions:
+            entry = float(pos.get("entry_price") or 0.0)
+            size = float(pos.get("size") or 0.0)
+            direction = str(pos.get("direction") or "LONG").upper()
+            liq = float(pos.get("liquidation_price") or pos.get("stop_loss") or 0.0)
+            stressed = entry * (1 + shock / 100.0)
+            pnl = (stressed - entry) * size if direction == "LONG" else (entry - stressed) * size
+            vuln = liq > 0 and ((direction == "LONG" and stressed <= liq) or (direction == "SHORT" and stressed >= liq))
+            liquidations += 1 if vuln else 0
+            total += pnl
+            shocked_positions.append(
+                {
+                    "symbol": pos.get("symbol"),
+                    "direction": direction,
+                    "stressed_price": round(stressed, 6),
+                    "projected_pnl_usd": round(pnl, 4),
+                    "liquidation_risk": vuln,
+                    "ai_reasoning": pos.get("ai_reasoning") or "",
+                }
+            )
+        recommendations = []
+        if liquidations:
+            recommendations.append("Reduce leverage or cut weakest positions before macro selloffs.")
+        if total < -250:
+            recommendations.append("Move to demo mode and tighten auto-pilot until volatility normalizes.")
+        if not recommendations:
+            recommendations.append("Portfolio remains resilient under this shock profile.")
+        scenarios.append(
+            {
+                "shock_pct": shock,
+                "projected_total_pnl_usd": round(total, 4),
+                "liquidation_vulnerabilities": liquidations,
+                "positions": shocked_positions,
+                "recommendations": recommendations,
+            }
+        )
+    return {"ok": True, "user_id": user.id, "position_count": len(positions), "scenarios": scenarios}
 
 
 @app.get("/api/copy-trading/followers")

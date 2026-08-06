@@ -1,61 +1,11 @@
 /**
  * Beast Native Canvas Charting Engine
- * Candlesticks, volume, MA/BB/RSI overlays, order-book depth tint.
+ * Worker-assisted indicators + requestAnimationFrame rendering.
  * Path: /static/js/beast-chart.js
  */
 (function (global) {
   function clamp(v, a, b) {
     return Math.max(a, Math.min(b, v));
-  }
-
-  function sma(values, period) {
-    const out = new Array(values.length).fill(null);
-    let sum = 0;
-    for (let i = 0; i < values.length; i++) {
-      sum += values[i];
-      if (i >= period) sum -= values[i - period];
-      if (i >= period - 1) out[i] = sum / period;
-    }
-    return out;
-  }
-
-  function stdev(values, period, means) {
-    const out = new Array(values.length).fill(null);
-    for (let i = period - 1; i < values.length; i++) {
-      const m = means[i];
-      if (m == null) continue;
-      let acc = 0;
-      for (let j = i - period + 1; j <= i; j++) {
-        const d = values[j] - m;
-        acc += d * d;
-      }
-      out[i] = Math.sqrt(acc / period);
-    }
-    return out;
-  }
-
-  function rsiSeries(closes, period) {
-    const out = new Array(closes.length).fill(null);
-    if (closes.length < period + 1) return out;
-    let avgGain = 0;
-    let avgLoss = 0;
-    for (let i = 1; i <= period; i++) {
-      const ch = closes[i] - closes[i - 1];
-      if (ch >= 0) avgGain += ch;
-      else avgLoss -= ch;
-    }
-    avgGain /= period;
-    avgLoss /= period;
-    out[period] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
-    for (let i = period + 1; i < closes.length; i++) {
-      const ch = closes[i] - closes[i - 1];
-      const gain = ch > 0 ? ch : 0;
-      const loss = ch < 0 ? -ch : 0;
-      avgGain = (avgGain * (period - 1) + gain) / period;
-      avgLoss = (avgLoss * (period - 1) + loss) / period;
-      out[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
-    }
-    return out;
   }
 
   function createBeastChart(containerId, options) {
@@ -77,17 +27,44 @@
     canvas.style.width = "100%";
     canvas.style.height = "100%";
     canvas.style.display = "block";
+    canvas.style.touchAction = "pan-x pan-y";
     root.appendChild(canvas);
     const ctx = canvas.getContext("2d");
+    const worker =
+      typeof Worker !== "undefined" ? new Worker("/static/js/chart-worker.js") : null;
 
     let candles = [];
     let depth = { bids: [], asks: [] };
+    let derived = {
+      candles: [],
+      ma20: [],
+      ma50: [],
+      bbMid: [],
+      bbSd: [],
+      rsi: [],
+      minP: 0,
+      maxP: 1,
+      maxVol: 1,
+      obi: 0,
+      depth,
+    };
     let symbol = "BTC/USDT";
     let showMA = true;
     let showBB = true;
     let showRSI = true;
     let showDepth = true;
     let flash = null;
+    let framePending = false;
+
+    if (worker) {
+      worker.onmessage = (event) => {
+        const msg = event.data || {};
+        if (msg.type === "chart_state" && msg.state) {
+          derived = msg.state;
+          scheduleDraw();
+        }
+      };
+    }
 
     function resize() {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -96,12 +73,12 @@
       canvas.width = Math.floor(w * dpr);
       canvas.height = Math.floor(h * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      draw();
+      scheduleDraw();
     }
 
     function setSymbol(next) {
       symbol = next || symbol;
-      draw();
+      scheduleDraw();
     }
 
     function loadCandles(rows) {
@@ -113,7 +90,7 @@
         close: +c.close,
         volume: +(c.volume || 0),
       }));
-      draw();
+      scheduleCompute();
     }
 
     function updateLiveCandle(c) {
@@ -134,7 +111,7 @@
         else if (row.time > last.time) candles.push(row);
       }
       if (candles.length > 500) candles = candles.slice(-500);
-      draw();
+      scheduleCompute();
     }
 
     function setDepth(book) {
@@ -142,7 +119,7 @@
         bids: (book?.bids || []).slice(0, 24),
         asks: (book?.asks || []).slice(0, 24),
       };
-      draw();
+      scheduleCompute();
     }
 
     function setMarkers() {}
@@ -155,7 +132,25 @@
         text: text || (side === "BUY" || side === "LONG" ? "LONG" : "SHORT"),
         until: performance.now() + 900,
       };
-      draw();
+      scheduleDraw();
+    }
+
+    function scheduleCompute() {
+      if (worker) {
+        worker.postMessage({ type: "compute_chart_state", candles, depth, symbol });
+      } else {
+        derived = { ...derived, candles: candles.slice(-120), depth };
+      }
+      scheduleDraw();
+    }
+
+    function scheduleDraw() {
+      if (framePending) return;
+      framePending = true;
+      requestAnimationFrame(() => {
+        framePending = false;
+        draw();
+      });
     }
 
     function draw() {
@@ -196,44 +191,31 @@
         return;
       }
 
-      const view = candles.slice(-120);
-      const closes = view.map((c) => c.close);
-      const highs = view.map((c) => c.high);
-      const lows = view.map((c) => c.low);
-      const vols = view.map((c) => c.volume);
-      const ma20 = sma(closes, 20);
-      const ma50 = sma(closes, 50);
-      const bbMid = sma(closes, 20);
-      const bbSd = stdev(closes, 20, bbMid);
-      const rsi = rsiSeries(closes, 14);
-
-      let minP = Math.min(...lows);
-      let maxP = Math.max(...highs);
-      if (showBB) {
-        for (let i = 0; i < view.length; i++) {
-          if (bbMid[i] != null && bbSd[i] != null) {
-            minP = Math.min(minP, bbMid[i] - 2 * bbSd[i]);
-            maxP = Math.max(maxP, bbMid[i] + 2 * bbSd[i]);
-          }
-        }
-      }
+      const view = derived.candles.length ? derived.candles : candles.slice(-120);
+      const ma20 = derived.ma20 || [];
+      const ma50 = derived.ma50 || [];
+      const bbMid = derived.bbMid || [];
+      const bbSd = derived.bbSd || [];
+      const rsi = derived.rsi || [];
+      const minP = derived.minP ?? 0;
+      const maxP = derived.maxP ?? 1;
+      const maxVol = derived.maxVol ?? 1;
       const span = maxP - minP || 1;
-      const maxVol = Math.max(...vols, 1);
       const slot = (w - padL - padR) / view.length;
       const bodyW = clamp(slot * 0.62, 2, 14);
 
       const yPrice = (p) => priceTop + ((maxP - p) / span) * priceH;
 
       // depth tint
-      if (showDepth && (depth.bids.length || depth.asks.length)) {
-        const mid = closes[closes.length - 1];
-        depth.bids.forEach((b, i) => {
+      if (showDepth && (derived.depth.bids.length || derived.depth.asks.length)) {
+        const mid = view[view.length - 1]?.close || 0;
+        derived.depth.bids.forEach((b, i) => {
           const p = +b[0] || mid * (1 - i * 0.001);
           const y = yPrice(p);
           ctx.fillStyle = `rgba(0,245,160,${0.04 + (1 - i / 24) * 0.05})`;
           ctx.fillRect(padL, y, w - padL - padR, 3);
         });
-        depth.asks.forEach((a, i) => {
+        derived.depth.asks.forEach((a, i) => {
           const p = +a[0] || mid * (1 + i * 0.001);
           const y = yPrice(p);
           ctx.fillStyle = `rgba(244,63,94,${0.04 + (1 - i / 24) * 0.05})`;
@@ -314,6 +296,8 @@
       const last = view[view.length - 1];
       ctx.fillStyle = last.close >= last.open ? opts.up : opts.down;
       ctx.fillText(last.close.toFixed(last.close >= 100 ? 2 : 4), w - padR + 4, yPrice(last.close));
+      ctx.fillStyle = opts.text;
+      ctx.fillText(`OBI ${Number(derived.obi || 0).toFixed(1)}%`, w - padR + 4, priceTop + 26);
 
       // RSI pane
       if (showRSI && rsiH > 40) {
@@ -375,11 +359,18 @@
         if (flags.bb != null) showBB = !!flags.bb;
         if (flags.rsi != null) showRSI = !!flags.rsi;
         if (flags.depth != null) showDepth = !!flags.depth;
-        draw();
+        scheduleCompute();
       },
-      redraw: draw,
+      redraw: scheduleDraw,
       engine: "beast-native",
     };
+  }
+
+  if (typeof Worker !== "undefined") {
+    const workerProto = Worker.prototype;
+    if (workerProto && !workerProto.__beastPatched) {
+      workerProto.__beastPatched = true;
+    }
   }
 
   global.BeastNativeChart = { createBeastChart };

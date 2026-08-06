@@ -19,6 +19,7 @@ from execution_engine import ExecutionEngine
 from market_data import MarketDataEngine
 from risk_manager import DEFAULT_ACCOUNT_BALANCE, RiskManager
 from strategy import SignalGenerator
+from trading_engine import trading_engine
 from trade_logger import TradeLogger
 
 
@@ -66,10 +67,11 @@ def evaluate_universe(
         df = market.get_market_snapshot(symbol, timeframe=timeframe)
         if df.empty:
             continue
-        signal = signal_gen.generate(
+        signal = trading_engine.evaluate(
             df,
             symbol=symbol,
             sentiment_score=sentiment_score,
+            equity=risk_mgr.account_balance,
         )
         risk = risk_mgr.evaluate_trade(signal)
         results.append({**signal, **risk, "candles": len(df)})
@@ -114,6 +116,7 @@ def maybe_execute(
             market_price=float(scan_row["entry_price"]),
             stop_loss=float(scan_row["stop_loss_price"]),
             take_profit=float(scan_row["take_profit_price"]),
+            metadata={"ai_reasoning": str(scan_row.get("ai_reasoning") or "")},
         )
         return {
             "message": (

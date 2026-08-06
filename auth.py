@@ -138,6 +138,8 @@ def user_to_public(user: User) -> dict[str, Any]:
         "created_at": user.created_at.isoformat() if user.created_at else None,
         "watchlist": watchlist,
         "equity": equity,
+        "demo_mode_default": True,
+        "demo_balance": 10000.0,
     }
 
 

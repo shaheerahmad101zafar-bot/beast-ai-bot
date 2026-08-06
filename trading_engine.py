@@ -23,6 +23,43 @@ class TradingEngine:
     def __init__(self) -> None:
         self.signals = SignalGenerator()
 
+    @staticmethod
+    def _build_reasoning(
+        final: str,
+        votes: dict[str, int],
+        *,
+        regime: dict[str, Any],
+        wick: dict[str, Any],
+        sentiment_score: float | None,
+    ) -> str:
+        if final == "HOLD":
+            return "No strong AI confluence edge detected."
+        parts: list[str] = []
+        if votes.get("rsi", 0) > 0:
+            parts.append("RSI oversold rebound")
+        elif votes.get("rsi", 0) < 0:
+            parts.append("RSI overbought fade")
+        if votes.get("macd", 0) > 0:
+            parts.append("MACD momentum turned positive")
+        elif votes.get("macd", 0) < 0:
+            parts.append("MACD momentum rolled negative")
+        if votes.get("volume", 0) > 0:
+            parts.append("volume expansion confirmed move")
+        if votes.get("oi", 0) > 0:
+            parts.append("positioning build supported continuation")
+        elif votes.get("oi", 0) < 0:
+            parts.append("positioning unwind supported reversal")
+        if sentiment_score is not None:
+            if sentiment_score >= 60:
+                parts.append("positive news tone")
+            elif sentiment_score <= 40:
+                parts.append("defensive news tone")
+        if regime.get("label"):
+            parts.append(f"regime {regime['label'].replace('_', ' ').title()}")
+        if wick.get("ok"):
+            parts.append("anti-wick filter passed")
+        return " + ".join(parts[:5]) or "AI confluence aligned across momentum, volume, and risk filters."
+
     def _volume_score(self, df: pd.DataFrame) -> float:
         if "volume" not in df.columns or len(df) < 20:
             return 0.5
@@ -190,6 +227,13 @@ class TradingEngine:
             "rl_policy": policy,
             "liquidation": quantum_engine.liquidation_heatmap(symbol),
             "vpin": quantum_engine.toxicity_label(symbol),
+            "ai_reasoning": self._build_reasoning(
+                final,
+                votes,
+                regime=regime,
+                wick=wick,
+                sentiment_score=sentiment_score,
+            ),
         }
 
 

@@ -255,6 +255,7 @@ class HFTScalper:
                 market_price=pos.entry,
                 stop_loss=sl,
                 take_profit=tp,
+                metadata={"ai_reasoning": "HFT micro-burst entry: volume spike + momentum scalp setup."},
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning("HFT entry dispatch failed: %s", exc)
@@ -272,7 +273,7 @@ class HFTScalper:
             # Opposing signal closes paper position via existing engine path
             signal = "SELL" if pos.side == "LONG" else "BUY"
             if hasattr(self.execution, "close_position"):
-                self.execution.close_position(pos.symbol, market_price=price, reason=reason)
+                self.execution.close_position(pos.symbol, market_price=price, exit_reason=reason)
             else:
                 self.execution.place_order(
                     symbol=pos.symbol,
@@ -282,6 +283,7 @@ class HFTScalper:
                     market_price=price,
                     stop_loss=price,
                     take_profit=price,
+                    metadata={"ai_reasoning": f"HFT opposing exit: {reason}"},
                 )
         except Exception as exc:  # noqa: BLE001
             logger.debug("HFT exit note: %s pnl=%.4f%%", exc, pnl_pct * 100)

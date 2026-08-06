@@ -58,6 +58,17 @@ class TradingBotService:
         self._last_daily_pnl_date: str | None = None
         self._last_signal_fingerprint: dict[str, str] = {}
 
+    def _panic_close_all(self, mark_prices: dict[str, float], reason: str) -> list[dict[str, Any]]:
+        closed: list[dict[str, Any]] = []
+        for symbol in list(self.execution.positions.keys()):
+            mark = float(mark_prices.get(symbol) or self._mark_prices.get(symbol) or 0.0)
+            pos = self.execution.get_position(symbol) or {}
+            if mark <= 0:
+                mark = float(pos.get("mark_price") or pos.get("entry_price") or 0.0)
+            if mark > 0:
+                closed.append(self.execution.close_position(symbol, mark, reason))
+        return closed
+
     def set_active_pairs(self, pairs: list[str]) -> list[str]:
         """Update the bot's active scan/trading universe."""
         cleaned = [str(p).strip() for p in pairs if str(p).strip()]
@@ -131,6 +142,15 @@ class TradingBotService:
                 sentiment = sentiment_engine.get_sentiment()
                 self._latest_sentiment = sentiment
                 sentiment_score = float(sentiment.get("score") or 50.0)
+                if sentiment_score <= 18 and self.execution.positions:
+                    panic_closed = self._panic_close_all(
+                        self._mark_prices,
+                        "macro_panic_circuit_breaker",
+                    )
+                    if panic_closed:
+                        events.append(
+                            f"PANIC BREAKER -> closed {len(panic_closed)} position(s) to USDT because sentiment hit {sentiment_score:.1f}"
+                        )
 
                 # Ensure today's SEO article exists (idempotent)
                 if self._cycle == 1 or self._cycle % 30 == 0:

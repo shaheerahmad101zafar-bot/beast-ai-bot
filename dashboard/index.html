@@ -61,6 +61,10 @@
         <div class="header-actions flex flex-col sm:flex-row sm:flex-wrap md:justify-end items-stretch sm:items-center gap-2 sm:gap-3 w-full md:w-auto md:max-w-xl">
           <div class="social-links hidden sm:flex" data-social-links aria-label="Social links"></div>
           <div id="user-chip" class="user-chip order-1"></div>
+          <div class="ui-mode-toggle order-2" role="group" aria-label="Execution mode">
+            <button id="btn-demo-mode" type="button" class="eng-btn active" data-sandbox-mode="demo">Risk-Free $10k Demo Mode</button>
+            <button id="btn-live-mode" type="button" class="eng-btn" data-sandbox-mode="live">Live Binance Trading</button>
+          </div>
           <div class="ui-mode-toggle order-2" role="group" aria-label="Interface mode">
             <button id="btn-ui-simple" type="button" class="eng-btn active" data-ui-mode="simple">Simple AI Mode</button>
             <button id="btn-ui-pro" type="button" class="eng-btn" data-ui-mode="pro">Institutional Pro Desk</button>
@@ -89,6 +93,7 @@
               <span id="toggle-text" class="power-value w-8">OFF</span>
             </label>
           </div>
+          <button id="btn-copilot" type="button" class="action-btn secondary order-4 sm:order-4">AI Copilot Cmd+K</button>
         </div>
       </div>
     </header>
@@ -193,21 +198,21 @@
           <p id="manual-msg" class="text-xs text-mist mt-2"></p>
         </div>
         <div id="quant-strip" class="grid grid-cols-2 lg:grid-cols-4 gap-3" data-pro-only>
-          <div class="mini-stat"><div class="mini-label">VPIN Toxicity</div><div id="q-vpin" class="mini-value">—</div></div>
-          <div class="mini-stat"><div class="mini-label">Regime</div><div id="q-regime" class="mini-value text-sm">—</div></div>
-          <div class="mini-stat"><div class="mini-label">Circuit Breaker</div><div id="q-breaker" class="mini-value text-sm">OK</div></div>
-          <div class="mini-stat"><div class="mini-label">HFT Latency</div><div id="q-hft-lat" class="mini-value text-sm">—</div></div>
+          <div class="mini-stat"><div class="mini-label">VPIN Toxicity</div><div id="q-vpin" class="mini-value">—</div><p class="metric-tip">Shows whether order flow looks toxic or safe for fresh entries.</p></div>
+          <div class="mini-stat"><div class="mini-label">Regime</div><div id="q-regime" class="mini-value text-sm">—</div><p class="metric-tip">Tells you if the market is trending, choppy, or volatile right now.</p></div>
+          <div class="mini-stat"><div class="mini-label">Circuit Breaker</div><div id="q-breaker" class="mini-value text-sm">OK</div><p class="metric-tip">If risk gets too high, Beast pauses or exits trades automatically.</p></div>
+          <div class="mini-stat"><div class="mini-label">HFT Latency</div><div id="q-hft-lat" class="mini-value text-sm">—</div><p class="metric-tip">Measures how fast Beast reacts to live futures ticks.</p></div>
         </div>
         <div id="pro-metrics-panel" class="grid grid-cols-1 md:grid-cols-3 gap-3" data-pro-only>
           <div class="glass-panel p-4">
             <div class="mini-label">Liquidation Heatmap</div>
             <div id="q-liq" class="mini-value mt-2">—</div>
-            <p class="text-xs text-mist mt-2">Synthetic long/short liquidation density around mark.</p>
+            <p class="text-xs text-mist mt-2">Shows where crowded leverage may unwind and cause fast moves.</p>
           </div>
           <div class="glass-panel p-4">
             <div class="mini-label">Order Book Imbalance</div>
             <div id="q-obi" class="mini-value mt-2">—</div>
-            <p class="text-xs text-mist mt-2">Bid/ask size skew from live top-of-book updates.</p>
+            <p class="text-xs text-mist mt-2">Explains whether buy walls or sell walls are stronger right now.</p>
           </div>
           <div class="glass-panel p-4">
             <div class="mini-label">Feed Health</div>
@@ -348,6 +353,22 @@
               <tr><td colspan="8" class="empty">No closed trades yet</td></tr>
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <section class="panel mb-8">
+        <div class="panel-head">
+          <h2 class="panel-title">Instant Portfolio Stress Test</h2>
+          <span id="stress-meta" class="panel-meta">Crash simulator for open positions</span>
+        </div>
+        <div class="px-1 pb-4">
+          <div class="flex flex-wrap gap-3 items-center mb-4">
+            <button id="btn-stress-test" type="button" class="action-btn">Market Crash Stress Test</button>
+            <p id="stress-msg" class="text-sm text-mist">Simulates BTC-led -5%, -10%, and -20% market shocks.</p>
+          </div>
+          <div id="stress-results" class="grid gap-3">
+            <div class="empty text-mist text-sm">No stress test run yet.</div>
+          </div>
         </div>
       </section>
 
@@ -551,6 +572,25 @@
           <button type="submit" id="connect-submit" class="action-btn">Validate &amp; Save</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <div id="copilot-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-close-copilot></div>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="copilot-title">
+      <div class="flex items-start justify-between gap-3 mb-4">
+        <div>
+          <h2 id="copilot-title" class="font-display text-xl font-bold text-white">AI Copilot Command Bar</h2>
+          <p class="text-xs text-mist mt-1">Try: Long SOL 5x leverage TP 3%</p>
+        </div>
+        <button type="button" class="text-mist hover:text-white" data-close-copilot aria-label="Close">✕</button>
+      </div>
+      <input id="copilot-input" class="watch-input w-full" type="text" placeholder="Type a trading intent..." />
+      <p id="copilot-preview" class="text-xs text-mist mt-3">Command preview will appear here.</p>
+      <div class="flex gap-3 mt-4">
+        <button id="btn-copilot-run" type="button" class="action-btn">Execute Intent</button>
+        <button type="button" class="action-btn secondary" data-close-copilot>Cancel</button>
+      </div>
     </div>
   </div>
 
