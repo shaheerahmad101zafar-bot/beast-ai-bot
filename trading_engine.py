@@ -22,6 +22,15 @@ class TradingEngine:
 
     def __init__(self) -> None:
         self.signals = SignalGenerator()
+        self.runtime_params = {
+            "rsi_buy": 35.0,
+            "rsi_sell": 65.0,
+            "atr_mult": 1.8,
+            "macd_bias": 0.0,
+        }
+
+    def set_runtime_params(self, params: dict[str, float]) -> None:
+        self.runtime_params.update({k: float(v) for k, v in params.items() if k in self.runtime_params})
 
     @staticmethod
     def _build_reasoning(
@@ -158,12 +167,14 @@ class TradingEngine:
         quantum_engine.update_liquidation_heatmap(symbol, mark)
 
         rsi = float(df["rsi"].iloc[-1])
-        macd_hist = float(df["macd_hist"].iloc[-1])
+        macd_hist = float(df["macd_hist"].iloc[-1]) - float(self.runtime_params.get("macd_bias") or 0.0)
         vol_s = self._volume_score(df)
         oi_s = self._oi_proxy(df)
+        rsi_buy = float(self.runtime_params.get("rsi_buy") or 35.0)
+        rsi_sell = float(self.runtime_params.get("rsi_sell") or 65.0)
 
         votes = {
-            "rsi": 1 if rsi < 35 else (-1 if rsi > 65 else 0),
+            "rsi": 1 if rsi < rsi_buy else (-1 if rsi > rsi_sell else 0),
             "macd": 1 if macd_hist > 0 else (-1 if macd_hist < 0 else 0),
             "volume": 1 if vol_s >= 0.55 else (-1 if vol_s <= 0.35 else 0),
             "oi": 1 if oi_s >= 0.58 else (-1 if oi_s <= 0.42 else 0),

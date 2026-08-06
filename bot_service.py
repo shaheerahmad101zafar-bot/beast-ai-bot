@@ -11,6 +11,7 @@ from typing import Any
 
 import config
 from execution_engine import ExecutionEngine
+from hedging_engine import hedging_engine
 from main import evaluate_universe, maybe_execute
 from market_data import MarketDataEngine
 from risk_manager import DEFAULT_ACCOUNT_BALANCE, RiskManager
@@ -143,14 +144,24 @@ class TradingBotService:
                 self._latest_sentiment = sentiment
                 sentiment_score = float(sentiment.get("score") or 50.0)
                 if sentiment_score <= 18 and self.execution.positions:
-                    panic_closed = self._panic_close_all(
-                        self._mark_prices,
-                        "macro_panic_circuit_breaker",
+                    hedge = hedging_engine.apply_flash_hedge(
+                        self.execution,
+                        positions=list(self.execution.positions.values()),
+                        mark_prices=self._mark_prices,
                     )
-                    if panic_closed:
+                    if hedge:
                         events.append(
-                            f"PANIC BREAKER -> closed {len(panic_closed)} position(s) to USDT because sentiment hit {sentiment_score:.1f}"
+                            f"PANIC HEDGE -> short hedge engaged because sentiment hit {sentiment_score:.1f}"
                         )
+                    else:
+                        panic_closed = self._panic_close_all(
+                            self._mark_prices,
+                            "macro_panic_circuit_breaker",
+                        )
+                        if panic_closed:
+                            events.append(
+                                f"PANIC BREAKER -> closed {len(panic_closed)} position(s) to USDT because sentiment hit {sentiment_score:.1f}"
+                            )
 
                 # Ensure today's SEO article exists (idempotent)
                 if self._cycle == 1 or self._cycle % 30 == 0:
@@ -374,6 +385,7 @@ class TradingBotService:
                 "sentiment_score": sentiment.get("score"),
                 "sentiment_label": sentiment.get("label"),
                 "events": list(self._latest_events),
+                "hedge": hedging_engine.snapshot(),
                 "error": self._last_error,
                 "server_time": _utc_now(),
             }

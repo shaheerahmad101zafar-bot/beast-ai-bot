@@ -50,10 +50,14 @@ from oauth_auth import (
     start_oauth,
 )
 from admin_settings import admin_settings
+from arbitrage_scanner import arbitrage_scanner
 from backup_engine import backup_engine
 from backtest import backtester
 from billing import billing
 from hft_scalper import hft_scalper
+from execution_ws import execution_ws
+from genetic_tuner import genetic_tuner
+from hedging_engine import hedging_engine
 from quantum_engine import quantum_engine
 from bot_service import bot_service
 from cms_engine import cms_engine
@@ -164,6 +168,8 @@ async def lifespan(app: FastAPI):
     except Exception:
         pass
     await ws_hub.start()
+    await arbitrage_scanner.start()
+    await genetic_tuner.start()
     await backup_engine.start()
     # Upgrade seeded top-50 pairs to live Binance volume ranking in background.
     try:
@@ -175,6 +181,8 @@ async def lifespan(app: FastAPI):
         await bot_service.start()
     yield
     await bot_service.stop()
+    await genetic_tuner.stop()
+    await arbitrage_scanner.stop()
     await backup_engine.stop()
     await ws_hub.stop()
     bot_service.shutdown()
@@ -827,12 +835,26 @@ async def api_quant_snapshot(
         "user_id": user.id,
         "quant": quantum_engine.snapshot(symbol),
         "hft": hft_scalper.get_status(),
+        "hedging": hedging_engine.snapshot(),
+        "arbitrage": arbitrage_scanner.snapshot(),
+        "genetic_tuner": genetic_tuner.snapshot(),
+        "execution_ws": execution_ws.status(),
     }
 
 
 @app.get("/api/hft/status")
 async def api_hft_status(user: User = Depends(get_current_user)) -> dict[str, Any]:
     return {"ok": True, "user_id": user.id, **hft_scalper.get_status()}
+
+
+@app.get("/api/arbitrage/snapshot")
+async def api_arbitrage_snapshot(user: User = Depends(get_current_user)) -> dict[str, Any]:
+    return {"ok": True, "user_id": user.id, **arbitrage_scanner.snapshot()}
+
+
+@app.get("/api/genetic-tuner/status")
+async def api_genetic_tuner_status(user: User = Depends(get_current_user)) -> dict[str, Any]:
+    return {"ok": True, "user_id": user.id, **genetic_tuner.snapshot()}
 
 
 @app.post("/api/hft/toggle")

@@ -49,6 +49,10 @@ LOOP_INTERVAL_SECONDS: Final[int] = 10
 MIN_SIGNAL_CONFIDENCE: Final[float] = 50.0
 FUTURES_FEE_RATE: Final[float] = 0.0004  # 0.04% taker fee (per side)
 DEFAULT_SLIPPAGE_BPS: Final[float] = 2.0  # 2 bps = 0.02%
+BINANCE_FUTURES_TRADE_WS: Final[str] = os.getenv(
+    "BINANCE_FUTURES_TRADE_WS",
+    "wss://ws-fapi.binance.com/ws-fapi/v1",
+)
 PAPER_PORTFOLIO_PATH: Final[str] = "paper_portfolio.json"
 TRADE_HISTORY_CSV: Final[str] = "trade_history.csv"
 TRADE_HISTORY_JSON: Final[str] = "trade_history.json"

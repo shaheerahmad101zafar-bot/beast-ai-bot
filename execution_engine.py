@@ -8,6 +8,7 @@ auto-closes on SL / TP / opposing signal. State persists to JSON.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import uuid
@@ -19,6 +20,7 @@ from typing import Any
 from dotenv import load_dotenv
 
 import config
+from execution_ws import execution_ws
 from notifications import notifications
 from trade_logger import TradeLogger
 
@@ -51,6 +53,7 @@ class ExecutionEngine:
         self.slippage_bps = float(slippage_bps)
         self.trade_logger = trade_logger or TradeLogger()
         self._live_exchange = None
+        self._execution_ws = execution_ws
 
         self.wallet_balance = float(starting_balance)
         self.realized_pnl = 0.0
@@ -60,6 +63,18 @@ class ExecutionEngine:
             self._load_portfolio(starting_balance=starting_balance)
         else:
             self._init_live_exchange()
+
+    @staticmethod
+    def _run_coro(coro):
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(coro)
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(coro)
+        finally:
+            loop.close()
 
     # ------------------------------------------------------------------
     # Public API
@@ -335,15 +350,70 @@ class ExecutionEngine:
         )
 
     def _live_open(self, **kwargs: Any) -> dict[str, Any]:
-        raise NotImplementedError(
-            "LIVE_BINANCE order routing is scaffolded but disabled until API keys "
-            "and production risk controls are explicitly enabled."
+        symbol = str(kwargs["symbol"])
+        direction = str(kwargs["direction"])
+        size_units = float(kwargs["size_units"])
+        market_price = float(kwargs["market_price"])
+        leverage = float(kwargs["leverage"])
+        response = self._run_coro(
+            self._execution_ws.place_order(
+                symbol=symbol,
+                side="BUY" if direction == "LONG" else "SELL",
+                quantity=size_units,
+                reduce_only=False,
+            )
         )
+        trade_id = str(uuid.uuid4())[:8]
+        position = {
+            "trade_id": trade_id,
+            "symbol": symbol,
+            "direction": direction,
+            "entry_price": round(market_price, 8),
+            "size": round(size_units, 8),
+            "notional": round(size_units * market_price, 4),
+            "leverage": round(leverage, 2),
+            "margin": round((size_units * market_price) / max(leverage, 1.0), 4),
+            "stop_loss": round(float(kwargs["stop_loss"]), 8),
+            "take_profit": round(float(kwargs["take_profit"]), 8),
+            "entry_fee": 0.0,
+            "mark_price": round(market_price, 8),
+            "unrealized_pnl": 0.0,
+            "opened_at": _utc_now(),
+            "ai_reasoning": str((kwargs.get("metadata") or {}).get("ai_reasoning") or ""),
+            "execution_pipe": response,
+        }
+        self.positions[symbol] = position
+        return {"status": "filled", "mode": "LIVE_BINANCE_WS", **position}
 
     def _live_close(self, symbol: str, market_price: float, exit_reason: str) -> dict[str, Any]:
-        raise NotImplementedError(
-            "LIVE_BINANCE close routing is scaffolded but disabled until explicitly enabled."
+        pos = self.positions[symbol]
+        response = self._run_coro(
+            self._execution_ws.place_order(
+                symbol=symbol,
+                side="SELL" if pos["direction"] == "LONG" else "BUY",
+                quantity=float(pos["size"]),
+                reduce_only=True,
+            )
         )
+        trade = {
+            "timestamp": _utc_now(),
+            "trade_id": pos.get("trade_id"),
+            "pair": symbol,
+            "direction": pos["direction"],
+            "entry_price": float(pos["entry_price"]),
+            "exit_price": round(market_price, 8),
+            "size": float(pos["size"]),
+            "leverage": float(pos.get("leverage") or 1.0),
+            "pnl_usd": round(self._unrealized_pnl(pos, market_price), 4),
+            "fees_usd": 0.0,
+            "exit_reason": exit_reason,
+            "gross_pnl": round(self._unrealized_pnl(pos, market_price), 4),
+            "ai_reasoning": str(pos.get("ai_reasoning") or ""),
+            "execution_pipe": response,
+        }
+        del self.positions[symbol]
+        self.trade_logger.log_trade(trade)
+        return trade
 
     # ------------------------------------------------------------------
     # Helpers
