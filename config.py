@@ -190,6 +190,10 @@ BACKTEST_LOOKBACK_DAYS: Final[int] = int(os.getenv("BACKTEST_LOOKBACK_DAYS", "30
 BINANCE_HTTP_WEIGHT_LIMIT_PER_MIN: Final[int] = int(
     os.getenv("BINANCE_HTTP_WEIGHT_LIMIT_PER_MIN", "1100")
 )
+SOCKET_TCP_NODELAY: Final[bool] = os.getenv("SOCKET_TCP_NODELAY", "1") != "0"
+SOCKET_SO_REUSEPORT: Final[bool] = os.getenv("SOCKET_SO_REUSEPORT", "0") == "1"
+TRADE_RING_BUFFER_SIZE: Final[int] = int(os.getenv("TRADE_RING_BUFFER_SIZE", "2048"))
+TICK_RING_BUFFER_SIZE: Final[int] = int(os.getenv("TICK_RING_BUFFER_SIZE", "8192"))
 
 # ---------------------------------------------------------------------------
 # Security / Backups (Phase 13)

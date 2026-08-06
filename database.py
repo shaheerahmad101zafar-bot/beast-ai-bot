@@ -4,7 +4,10 @@ Beast AI Trading Bot — Phase 8 SQLite / SQLAlchemy Database Layer
 
 from __future__ import annotations
 
+import threading
+from collections import deque
 from datetime import datetime, timezone
+from typing import Any, Callable
 
 from sqlalchemy import (
     Boolean,
@@ -210,3 +213,44 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+class RingBufferIngestor:
+    def __init__(self, max_tasks: int = config.TRADE_RING_BUFFER_SIZE, max_ticks: int = config.TICK_RING_BUFFER_SIZE) -> None:
+        self._tasks: deque[tuple[Callable[..., Any], tuple[Any, ...], dict[str, Any]]] = deque(maxlen=max_tasks)
+        self._ticks: deque[dict[str, Any]] = deque(maxlen=max_ticks)
+        self._lock = threading.Lock()
+        self._wake = threading.Event()
+        self._stop = False
+        self._thread = threading.Thread(target=self._run, name="db-ring-buffer", daemon=True)
+        self._thread.start()
+
+    def enqueue(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
+        with self._lock:
+            self._tasks.append((fn, args, kwargs))
+        self._wake.set()
+
+    def record_tick(self, tick: dict[str, Any]) -> None:
+        with self._lock:
+            self._ticks.append(dict(tick))
+
+    def recent_ticks(self, limit: int = 200) -> list[dict[str, Any]]:
+        with self._lock:
+            return list(self._ticks)[-max(1, limit):]
+
+    def _run(self) -> None:
+        while not self._stop:
+            self._wake.wait(timeout=0.5)
+            self._wake.clear()
+            while True:
+                with self._lock:
+                    if not self._tasks:
+                        break
+                    fn, args, kwargs = self._tasks.popleft()
+                try:
+                    fn(*args, **kwargs)
+                except Exception:
+                    continue
+
+
+ring_buffer = RingBufferIngestor()

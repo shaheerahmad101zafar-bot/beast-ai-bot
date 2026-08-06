@@ -13,11 +13,9 @@ from typing import Any
 import ccxt
 import ccxt.async_support as ccxt_async
 import pandas as pd
-from ta.momentum import RSIIndicator
-from ta.trend import EMAIndicator, MACD
-from ta.volatility import AverageTrueRange
 
 import config
+from indicators import atr, ema, macd_hist, rsi
 
 
 class MarketDataEngine:
@@ -123,26 +121,20 @@ class MarketDataEngine:
         high = out["high"]
         low = out["low"]
 
-        out["rsi"] = RSIIndicator(close=close, window=config.RSI_PERIOD).rsi()
-        out["ema_20"] = EMAIndicator(close=close, window=config.EMA_FAST).ema_indicator()
-        out["ema_50"] = EMAIndicator(close=close, window=config.EMA_MID).ema_indicator()
-        out["ema_200"] = EMAIndicator(close=close, window=config.EMA_SLOW).ema_indicator()
-        out["atr"] = AverageTrueRange(
-            high=high,
-            low=low,
-            close=close,
-            window=config.ATR_PERIOD,
-        ).average_true_range()
-
-        macd = MACD(
-            close=close,
-            window_slow=config.MACD_SLOW,
-            window_fast=config.MACD_FAST,
-            window_sign=config.MACD_SIGNAL,
+        out["rsi"] = rsi(close, window=config.RSI_PERIOD)
+        out["ema_20"] = ema(close, window=config.EMA_FAST)
+        out["ema_50"] = ema(close, window=config.EMA_MID)
+        out["ema_200"] = ema(close, window=config.EMA_SLOW)
+        out["atr"] = atr(high, low, close, window=config.ATR_PERIOD)
+        macd, macd_signal, hist = macd_hist(
+            close,
+            fast=config.MACD_FAST,
+            slow=config.MACD_SLOW,
+            signal=config.MACD_SIGNAL,
         )
-        out["macd"] = macd.macd()
-        out["macd_signal"] = macd.macd_signal()
-        out["macd_hist"] = macd.macd_diff()
+        out["macd"] = macd
+        out["macd_signal"] = macd_signal
+        out["macd_hist"] = hist
 
         return out
 

@@ -17,10 +17,13 @@ from typing import Any
 import config
 from execution_engine import ExecutionEngine
 from market_data import MarketDataEngine
+from network_tuning import apply_global_socket_tuning
 from risk_manager import DEFAULT_ACCOUNT_BALANCE, RiskManager
 from strategy import SignalGenerator
 from trading_engine import trading_engine
 from trade_logger import TradeLogger
+
+apply_global_socket_tuning()
 
 
 def _fmt(value: float | None, decimals: int = 2) -> str:

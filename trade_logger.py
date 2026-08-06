@@ -7,12 +7,13 @@ Persists every executed (closed) trade to CSV and a JSON mirror.
 from __future__ import annotations
 
 import csv
-import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import config
+from database import ring_buffer
+from fast_json import dumps, loads
 
 TRADE_FIELDS: list[str] = [
     "timestamp",
@@ -41,6 +42,7 @@ class TradeLogger:
         self.csv_path = Path(csv_path)
         self.json_path = Path(json_path)
         self._ensure_csv_header()
+        self._history_cache: list[dict[str, Any]] | None = None
 
     def _ensure_csv_header(self) -> None:
         if self.csv_path.exists() and self.csv_path.stat().st_size > 0:
@@ -72,27 +74,32 @@ class TradeLogger:
             "ai_reasoning": str(trade.get("ai_reasoning") or ""),
         }
 
-        with self.csv_path.open("a", newline="", encoding="utf-8") as fh:
-            writer = csv.DictWriter(fh, fieldnames=TRADE_FIELDS)
-            writer.writerow(record)
-
         history = self.load_history()
         history.append(record)
-        with self.json_path.open("w", encoding="utf-8") as fh:
-            json.dump(history, fh, indent=2)
+        self._history_cache = history
+        ring_buffer.enqueue(self._persist_record, record, list(history))
 
         return record
 
+    def _persist_record(self, record: dict[str, Any], history: list[dict[str, Any]]) -> None:
+        with self.csv_path.open("a", newline="", encoding="utf-8") as fh:
+            writer = csv.DictWriter(fh, fieldnames=TRADE_FIELDS)
+            writer.writerow(record)
+        self.json_path.write_bytes(dumps(history))
+
     def load_history(self) -> list[dict[str, Any]]:
+        if self._history_cache is not None:
+            return list(self._history_cache)
         if self.json_path.exists():
             try:
-                with self.json_path.open("r", encoding="utf-8") as fh:
-                    data = json.load(fh)
+                data = loads(self.json_path.read_bytes())
                 if isinstance(data, list):
+                    self._history_cache = list(data)
                     return data
-            except (json.JSONDecodeError, OSError):
+            except OSError:
                 pass
-        return self._load_history_from_csv()
+        self._history_cache = self._load_history_from_csv()
+        return list(self._history_cache)
 
     def _load_history_from_csv(self) -> list[dict[str, Any]]:
         if not self.csv_path.exists():

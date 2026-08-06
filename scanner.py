@@ -8,6 +8,11 @@ from typing import Any
 
 import requests
 
+from fast_json import loads
+from network_tuning import apply_global_socket_tuning
+
+apply_global_socket_tuning()
+
 # Top liquid Binance USDT-M perpetual bases (display as BASE/USDT).
 TOP_50_USDT_PAIRS: list[str] = [
     "BTC/USDT",
@@ -64,6 +69,7 @@ TOP_50_USDT_PAIRS: list[str] = [
 
 BINANCE_FAPI_EXCHANGE_INFO = "https://fapi.binance.com/fapi/v1/exchangeInfo"
 BINANCE_FAPI_TICKER_24H = "https://fapi.binance.com/fapi/v1/ticker/24hr"
+HTTP = requests.Session()
 
 
 def seed_pair_rows() -> list[dict[str, Any]]:
@@ -91,16 +97,16 @@ def fetch_all_usdt_futures_pairs(limit: int = 250) -> list[dict[str, Any]]:
     Dynamically load USDT-M perpetual symbols from Binance /fapi/v1/exchangeInfo
     and enrich with 24h quote volume when available.
     """
-    info = requests.get(BINANCE_FAPI_EXCHANGE_INFO, timeout=20)
+    info = HTTP.get(BINANCE_FAPI_EXCHANGE_INFO, timeout=20)
     info.raise_for_status()
-    payload = info.json()
+    payload = loads(info.content)
     symbols_meta = payload.get("symbols") or []
 
     volume_map: dict[str, dict[str, float]] = {}
     try:
-        tickers = requests.get(BINANCE_FAPI_TICKER_24H, timeout=20)
+        tickers = HTTP.get(BINANCE_FAPI_TICKER_24H, timeout=20)
         tickers.raise_for_status()
-        for t in tickers.json() or []:
+        for t in loads(tickers.content) or []:
             sym = str(t.get("symbol") or "")
             volume_map[sym] = {
                 "quote_volume": float(t.get("quoteVolume") or 0),

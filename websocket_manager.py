@@ -8,7 +8,6 @@ Connection manager + Binance USD-M Futures market stream
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import socket
 from collections import deque
@@ -21,6 +20,11 @@ from fastapi import WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
 
 import config
+from database import ring_buffer
+from fast_json import loads
+from network_tuning import apply_global_socket_tuning
+
+apply_global_socket_tuning()
 
 logger = logging.getLogger("beast.websocket")
 
@@ -289,8 +293,8 @@ class BinanceFuturesListener:
                                     raise TimeoutError(f"Binance WS stalled on {base}")
                                 continue
                             try:
-                                msg = json.loads(raw)
-                            except json.JSONDecodeError:
+                                msg = loads(raw)
+                            except Exception:
                                 continue
                             stale_ticks = 0
                             self.last_message_at = asyncio.get_running_loop().time()
@@ -459,6 +463,7 @@ class WebSocketHub:
                     "source": "bookTicker",
                     "ts": payload.get("ts"),
                 }
+                ring_buffer.record_tick(self.ticks[symbol])
                 self._apply_mark(symbol, float(mid))
                 try:
                     from hft_scalper import hft_scalper
@@ -492,6 +497,7 @@ class WebSocketHub:
                     "funding_rate": payload.get("funding_rate"),
                     "ts": payload.get("ts"),
                 }
+                ring_buffer.record_tick(self.ticks[symbol])
                 self._apply_mark(symbol, price)
                 try:
                     from hft_scalper import hft_scalper
@@ -518,6 +524,7 @@ class WebSocketHub:
                     "source": "kline",
                     "ts": payload.get("ts"),
                 }
+                ring_buffer.record_tick(self.ticks[symbol])
             await self.manager.broadcast("market", payload)
 
     def _apply_mark(self, symbol: str, price: float) -> None:
@@ -669,7 +676,7 @@ class WebSocketHub:
 
     async def _handle_client_command(self, websocket: WebSocket, raw: str, channel: Channel) -> None:
         try:
-            msg = json.loads(raw)
+            msg = loads(raw)
         except json.JSONDecodeError:
             return
         action = msg.get("action")
