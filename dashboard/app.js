@@ -335,6 +335,12 @@
             row.classList.add("tick-pulse");
           }
         }
+        if (chartEngine?.setDepth && msg.bid && msg.ask) {
+          chartEngine.setDepth({
+            bids: [[msg.bid, msg.bid_qty || 1]],
+            asks: [[msg.ask, msg.ask_qty || 1]],
+          });
+        }
       }
       if (msg.symbol === chartSymbol && els.chartMeta && price > 0) {
         els.chartMeta.textContent = `${chartSymbol} · tick ${fmt(price, price >= 100 ? 2 : 4)}`;
