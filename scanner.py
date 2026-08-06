@@ -4,6 +4,8 @@ Beast AI — Universe seed + Binance Futures exchangeInfo loader (200+ USDT pair
 
 from __future__ import annotations
 
+import logging
+import time
 from typing import Any
 
 import requests
@@ -12,6 +14,8 @@ from fast_json import loads
 from network_tuning import apply_global_socket_tuning
 
 apply_global_socket_tuning()
+
+logger = logging.getLogger("beast.scanner")
 
 # Top liquid Binance USDT-M perpetual bases (display as BASE/USDT).
 TOP_50_USDT_PAIRS: list[str] = [
@@ -70,6 +74,38 @@ TOP_50_USDT_PAIRS: list[str] = [
 BINANCE_FAPI_EXCHANGE_INFO = "https://fapi.binance.com/fapi/v1/exchangeInfo"
 BINANCE_FAPI_TICKER_24H = "https://fapi.binance.com/fapi/v1/ticker/24hr"
 HTTP = requests.Session()
+_RETRY_STATUSES = {429, 500, 502, 503, 504}
+
+
+def _get_with_backoff(url: str, *, timeout: float = 20.0, label: str = "binance") -> requests.Response:
+    """Exponential backoff for Binance HTTP 500/502/504 and rate-limit drops."""
+    delays = (0.4, 0.9, 1.8, 3.5, 6.0)
+    last_exc: Exception | None = None
+    for attempt, delay in enumerate(delays):
+        try:
+            resp = HTTP.get(url, timeout=timeout)
+            if resp.status_code in _RETRY_STATUSES:
+                raise requests.HTTPError(
+                    f"{label} HTTP {resp.status_code}",
+                    response=resp,
+                )
+            resp.raise_for_status()
+            return resp
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            logger.warning(
+                "Binance REST %s attempt %s/%s failed: %s — backoff %.1fs",
+                label,
+                attempt + 1,
+                len(delays),
+                exc,
+                delay,
+            )
+            if attempt >= len(delays) - 1:
+                break
+            time.sleep(delay)
+    assert last_exc is not None
+    raise last_exc
 
 
 def seed_pair_rows() -> list[dict[str, Any]]:
@@ -97,15 +133,13 @@ def fetch_all_usdt_futures_pairs(limit: int = 250) -> list[dict[str, Any]]:
     Dynamically load USDT-M perpetual symbols from Binance /fapi/v1/exchangeInfo
     and enrich with 24h quote volume when available.
     """
-    info = HTTP.get(BINANCE_FAPI_EXCHANGE_INFO, timeout=20)
-    info.raise_for_status()
+    info = _get_with_backoff(BINANCE_FAPI_EXCHANGE_INFO, timeout=20, label="exchangeInfo")
     payload = loads(info.content)
     symbols_meta = payload.get("symbols") or []
 
     volume_map: dict[str, dict[str, float]] = {}
     try:
-        tickers = HTTP.get(BINANCE_FAPI_TICKER_24H, timeout=20)
-        tickers.raise_for_status()
+        tickers = _get_with_backoff(BINANCE_FAPI_TICKER_24H, timeout=20, label="ticker24h")
         for t in loads(tickers.content) or []:
             sym = str(t.get("symbol") or "")
             volume_map[sym] = {

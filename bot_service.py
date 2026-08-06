@@ -19,7 +19,7 @@ from macro_guard import macro_guard
 from market_data import MarketDataEngine
 from multi_exchange_router import multi_exchange_router
 from quant_metrics import quant_metrics
-from risk_manager import DEFAULT_ACCOUNT_BALANCE, RiskManager
+from risk_manager import DEFAULT_ACCOUNT_BALANCE, RiskManager, portfolio_risk_guard
 from hft_scalper import hft_scalper
 from copy_trader import copy_trader
 from seo_generator import seo_generator
@@ -194,6 +194,8 @@ class TradingBotService:
                 )
                 mark_prices = {str(r["symbol"]): float(r["entry_price"]) for r in scan_rows}
                 signal_map = {str(r["symbol"]): str(r["signal"]) for r in scan_rows}
+                portfolio_risk_guard.ingest_marks(mark_prices)
+                portfolio_risk_guard.ingest_marks(self._mark_prices)
 
                 # Signal alerts (deduped per symbol/signal flip)
                 for row in scan_rows:

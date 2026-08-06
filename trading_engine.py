@@ -12,11 +12,13 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import requests
+import time
 
 from ai_council import ai_council
 import config
 from quantum_engine import quantum_engine
 from regime_classifier import regime_classifier
+from slippage_guard import slippage_guard
 from strategy import SignalGenerator
 
 
@@ -139,16 +141,36 @@ class TradingEngine:
         }
 
     @staticmethod
+    def _binance_get(url: str, params: dict[str, Any] | None = None, timeout: float = 6.0) -> dict[str, Any]:
+        """GET with exponential backoff on 429 / 5xx Binance errors."""
+        delays = (0.35, 0.8, 1.6, 3.2)
+        last_exc: Exception | None = None
+        for attempt, delay in enumerate(delays):
+            try:
+                resp = requests.get(url, params=params or {}, timeout=timeout)
+                if resp.status_code in {429, 500, 502, 503, 504}:
+                    raise requests.HTTPError(f"HTTP {resp.status_code}", response=resp)
+                resp.raise_for_status()
+                return resp.json() if resp.content else {}
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+                if attempt >= len(delays) - 1:
+                    break
+                time.sleep(delay)
+        if last_exc:
+            raise last_exc
+        return {}
+
+    @staticmethod
     def _funding_rate(symbol: str) -> float:
         raw = symbol.replace("/", "")
         try:
-            resp = requests.get(
+            data = TradingEngine._binance_get(
                 "https://fapi.binance.com/fapi/v1/premiumIndex",
                 params={"symbol": raw},
                 timeout=6,
             )
-            resp.raise_for_status()
-            return float(resp.json().get("lastFundingRate") or 0.0)
+            return float(data.get("lastFundingRate") or 0.0)
         except Exception:
             return 0.0
 
@@ -156,13 +178,11 @@ class TradingEngine:
     def _depth_ok(symbol: str, mark: float) -> dict[str, Any]:
         raw = symbol.replace("/", "")
         try:
-            resp = requests.get(
+            data = TradingEngine._binance_get(
                 "https://fapi.binance.com/fapi/v1/depth",
                 params={"symbol": raw, "limit": 5},
                 timeout=6,
             )
-            resp.raise_for_status()
-            data = resp.json()
             best_bid = float((data.get("bids") or [[mark, 0]])[0][0])
             best_ask = float((data.get("asks") or [[mark, 0]])[0][0])
             slippage_pct = abs(best_ask - best_bid) / max(mark, 1e-9) * 100
@@ -283,11 +303,19 @@ class TradingEngine:
             final = "HOLD"
             conf = min(conf, 22.0)
 
+        atr_val = float(base.get("atr") or (df["atr"].iloc[-1] if "atr" in df.columns else 0.0) or 0.0)
+        atr_pct_frac = (atr_val / mark) if mark > 0 and atr_val > 0 else 0.0
+        exec_slip = slippage_guard.volatility_slippage_pct(atr_pct=atr_pct_frac)
+
         return {
             **base,
             "symbol": symbol,
             "signal": final,
             "confidence_score": round(float(conf), 2),
+            "atr": atr_val,
+            "atr_pct_frac": round(atr_pct_frac, 6),
+            "execution_slippage_pct": round(exec_slip, 6),
+            "taker_fee_rate": float(config.FUTURES_FEE_RATE),
             "confluence": {
                 "votes": votes,
                 "score": score,

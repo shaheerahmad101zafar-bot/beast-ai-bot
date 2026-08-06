@@ -223,12 +223,49 @@ class ExecutionEngine:
     # ------------------------------------------------------------------
     # Paper trading
     # ------------------------------------------------------------------
-    def _apply_slippage(self, price: float, direction: str, is_entry: bool) -> float:
-        slip = self.slippage_bps / 10_000.0
-        # Entry LONG / Exit SHORT => pay the ask (worse buy)
-        # Entry SHORT / Exit LONG => hit the bid (worse sell)
+    def _vol_inputs(self, metadata: dict[str, Any] | None, position: dict[str, Any] | None = None) -> dict[str, float | None]:
+        meta = metadata or {}
+        atr_pct = meta.get("atr_pct_frac")
+        if atr_pct is None and meta.get("atr_pct") is not None:
+            # atr_pct from risk manager is percent points (1.5 => 1.5%)
+            atr_pct = float(meta["atr_pct"]) / 100.0
+        if atr_pct is None and position is not None:
+            atr_pct = position.get("atr_pct_frac")
+        realized = meta.get("realized_vol")
+        if realized is None and position is not None:
+            realized = position.get("realized_vol")
+        return {
+            "atr_pct": float(atr_pct) if atr_pct is not None else None,
+            "realized_vol": float(realized) if realized is not None else None,
+        }
+
+    def _apply_slippage(
+        self,
+        price: float,
+        direction: str,
+        is_entry: bool,
+        *,
+        atr_pct: float | None = None,
+        realized_vol: float | None = None,
+    ) -> tuple[float, float]:
+        """
+        Apply dynamic 0.02%–0.08% volatility slippage.
+        Returns (fill_price, slippage_pct).
+        """
+        fill = slippage_guard.apply_fill_price(
+            price,
+            direction=direction,
+            is_entry=is_entry,
+            atr_pct=atr_pct,
+            realized_vol=realized_vol,
+        )
+        # Never slip better than configured floor from DEFAULT_SLIPPAGE_BPS
+        floor = max(float(config.MIN_SLIPPAGE_PCT), self.slippage_bps / 10_000.0)
+        slip = max(floor, float(fill["slippage_pct"]))
+        slip = min(float(config.MAX_SLIPPAGE_PCT), slip)
         buying = (direction == "LONG" and is_entry) or (direction == "SHORT" and not is_entry)
-        return price * (1.0 + slip) if buying else price * (1.0 - slip)
+        fill_price = price * (1.0 + slip) if buying else price * (1.0 - slip)
+        return fill_price, slip
 
     def _paper_open(
         self,
@@ -244,10 +281,18 @@ class ExecutionEngine:
         if symbol in self.positions:
             raise RuntimeError(f"Position already open for {symbol}")
 
-        fill_price = self._apply_slippage(market_price, direction, is_entry=True)
+        vols = self._vol_inputs(metadata)
+        fill_price, slip_pct = self._apply_slippage(
+            market_price,
+            direction,
+            is_entry=True,
+            atr_pct=vols["atr_pct"],  # type: ignore[arg-type]
+            realized_vol=vols["realized_vol"],  # type: ignore[arg-type]
+        )
         notional = size_units * fill_price
         leverage = max(1.0, float(leverage))
         margin = notional / leverage
+        # Automated 0.04% exchange taker fee on every paper entry
         entry_fee = notional * self.fee_rate
 
         if margin + entry_fee > self.available_balance() + 1e-9:
@@ -270,6 +315,10 @@ class ExecutionEngine:
             "stop_loss": round(float(stop_loss), 8),
             "take_profit": round(float(take_profit), 8),
             "entry_fee": round(entry_fee, 6),
+            "fee_rate": self.fee_rate,
+            "slippage_pct": round(slip_pct, 6),
+            "atr_pct_frac": vols["atr_pct"],
+            "realized_vol": vols["realized_vol"],
             "mark_price": round(fill_price, 8),
             "unrealized_pnl": 0.0,
             "opened_at": _utc_now(),
@@ -293,10 +342,18 @@ class ExecutionEngine:
     ) -> dict[str, Any]:
         pos = self.positions[symbol]
         direction = pos["direction"]
-        fill_price = self._apply_slippage(market_price, direction, is_entry=False)
+        vols = self._vol_inputs(None, position=pos)
+        fill_price, slip_pct = self._apply_slippage(
+            market_price,
+            direction,
+            is_entry=False,
+            atr_pct=vols["atr_pct"],  # type: ignore[arg-type]
+            realized_vol=vols["realized_vol"],  # type: ignore[arg-type]
+        )
         size = float(pos["size"])
         entry = float(pos["entry_price"])
         notional_exit = size * fill_price
+        # Automated 0.04% exchange taker fee on every paper exit
         exit_fee = notional_exit * self.fee_rate
 
         gross_pnl = (
@@ -320,6 +377,9 @@ class ExecutionEngine:
             "leverage": float(pos.get("leverage") or 1.0),
             "pnl_usd": round(gross_pnl - total_fees, 4),
             "fees_usd": round(total_fees, 6),
+            "entry_fee": round(entry_fee, 6),
+            "exit_fee": round(exit_fee, 6),
+            "slippage_pct": round(slip_pct, 6),
             "exit_reason": exit_reason,
             "gross_pnl": round(gross_pnl, 4),
             "ai_reasoning": str(pos.get("ai_reasoning") or ""),
@@ -471,18 +531,46 @@ class ExecutionEngine:
                 return "Signal Change"
         return None
 
-    def _load_portfolio(self, starting_balance: float) -> None:
-        if not self.portfolio_path.exists():
-            self.wallet_balance = float(starting_balance)
-            self.realized_pnl = 0.0
-            self.positions = {}
-            self._save_portfolio()
-            return
+    def sync_open_order_state(self, mark_prices: dict[str, float] | None = None) -> dict[str, Any]:
+        """
+        Restore / re-sync open position marks after WS reconnect so active
+        trade tracking continues without data loss.
+        """
+        mark_prices = mark_prices or {}
+        synced = 0
+        for symbol, pos in self.positions.items():
+            mark = float(mark_prices.get(symbol) or pos.get("mark_price") or pos.get("entry_price") or 0.0)
+            if mark <= 0:
+                continue
+            pos["mark_price"] = round(mark, 8)
+            pos["unrealized_pnl"] = round(self._unrealized_pnl(pos, mark), 4)
+            synced += 1
+        self._save_portfolio()
+        return {
+            "ok": True,
+            "synced_positions": synced,
+            "wallet_balance": round(self.wallet_balance, 4),
+            "updated_at": _utc_now(),
+        }
 
-        try:
-            with self.portfolio_path.open("r", encoding="utf-8") as fh:
-                data = json.load(fh)
-        except (json.JSONDecodeError, OSError):
+    def _load_portfolio(self, starting_balance: float) -> None:
+        backup_path = Path(getattr(config, "STATE_BACKUP_PATH", "state_backup.json"))
+        data: dict[str, Any] | None = None
+        for path in (self.portfolio_path, backup_path):
+            if not path.exists():
+                continue
+            try:
+                with path.open("r", encoding="utf-8") as fh:
+                    loaded = json.load(fh)
+                if isinstance(loaded, dict) and (
+                    "wallet_balance" in loaded or "positions" in loaded
+                ):
+                    data = loaded
+                    break
+            except (json.JSONDecodeError, OSError):
+                continue
+
+        if data is None:
             self.wallet_balance = float(starting_balance)
             self.realized_pnl = 0.0
             self.positions = {}
@@ -505,3 +593,10 @@ class ExecutionEngine:
         }
         with self.portfolio_path.open("w", encoding="utf-8") as fh:
             json.dump(payload, fh, indent=2)
+        # Mirror to local fallback ledger for crash-safe restarts
+        try:
+            backup_path = Path(getattr(config, "STATE_BACKUP_PATH", "state_backup.json"))
+            with backup_path.open("w", encoding="utf-8") as fh:
+                json.dump(payload, fh, indent=2)
+        except OSError:
+            pass

@@ -185,6 +185,7 @@ async def lifespan(app: FastAPI):
     await backup_engine.start()
     await system_health.start(bot_service.execution.save)
     await asyncio.to_thread(state_manager.hydrate, bot_service)
+    await state_manager.start(bot_service)
     # Upgrade seeded top-50 pairs to live Binance volume ranking in background.
     try:
         await asyncio.to_thread(market_scanner.refresh_live_universe)
@@ -195,6 +196,7 @@ async def lifespan(app: FastAPI):
         await bot_service.start()
     yield
     await bot_service.stop()
+    await state_manager.stop()
     await genetic_tuner.stop()
     await arbitrage_scanner.stop()
     await liquidation_hunter.stop()

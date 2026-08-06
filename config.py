@@ -48,7 +48,12 @@ EXECUTION_MODE: Final[str] = "PAPER_TRADING"  # PAPER_TRADING | LIVE_BINANCE
 LOOP_INTERVAL_SECONDS: Final[int] = 10
 MIN_SIGNAL_CONFIDENCE: Final[float] = 50.0
 FUTURES_FEE_RATE: Final[float] = 0.0004  # 0.04% taker fee (per side)
-DEFAULT_SLIPPAGE_BPS: Final[float] = 2.0  # 2 bps = 0.02%
+DEFAULT_SLIPPAGE_BPS: Final[float] = 2.0  # 2 bps = 0.02% floor
+MIN_SLIPPAGE_PCT: Final[float] = 0.0002  # 0.02% dynamic floor
+MAX_SLIPPAGE_PCT: Final[float] = 0.0008  # 0.08% dynamic ceiling (volatile pairs)
+MAX_CORRELATED_ALT_POSITIONS: Final[int] = 3
+CORRELATION_THRESHOLD: Final[float] = 0.70
+CORRELATION_LOOKBACK: Final[int] = 48
 BINANCE_FUTURES_TRADE_WS: Final[str] = os.getenv(
     "BINANCE_FUTURES_TRADE_WS",
     "wss://ws-fapi.binance.com/ws-fapi/v1",
@@ -56,6 +61,8 @@ BINANCE_FUTURES_TRADE_WS: Final[str] = os.getenv(
 REGION_NODES: Final[list[str]] = [r.strip() for r in os.getenv("REGION_NODES", "ap,eu,us").split(",") if r.strip()]
 BEST_REGION_NODE: Final[str] = os.getenv("BEST_REGION_NODE", REGION_NODES[0] if REGION_NODES else "ap")
 PAPER_PORTFOLIO_PATH: Final[str] = "paper_portfolio.json"
+STATE_BACKUP_PATH: Final[str] = os.getenv("STATE_BACKUP_PATH", "state_backup.json")
+STATE_BACKUP_INTERVAL_SECONDS: Final[float] = float(os.getenv("STATE_BACKUP_INTERVAL_SECONDS", "5"))
 TRADE_HISTORY_CSV: Final[str] = "trade_history.csv"
 TRADE_HISTORY_JSON: Final[str] = "trade_history.json"
 

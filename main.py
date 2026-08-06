@@ -110,6 +110,32 @@ def maybe_execute(
             "signal": signal,
         }
 
+    direction = "LONG" if signal == "BUY" else "SHORT"
+    try:
+        from risk_manager import portfolio_risk_guard
+
+        basket = portfolio_risk_guard.basket_correlation_guard(
+            symbol,
+            direction,
+            execution.positions,
+        )
+        if not basket.get("ok"):
+            peers = ", ".join(
+                f"{p.get('symbol')}@{p.get('correlation')}"
+                for p in (basket.get("correlated_peers") or [])[:4]
+            ) or "n/a"
+            return {
+                "message": (
+                    f"SKIP {symbol}: basket correlation guard blocked "
+                    f"{direction} (peers: {peers})"
+                ),
+                "order": None,
+                "signal": signal,
+                "basket_guard": basket,
+            }
+    except Exception:  # noqa: BLE001
+        basket = None
+
     try:
         order = execution.place_order(
             symbol=symbol,
@@ -119,9 +145,13 @@ def maybe_execute(
             market_price=float(scan_row["entry_price"]),
             stop_loss=float(scan_row["stop_loss_price"]),
             take_profit=float(scan_row["take_profit_price"]),
-            metadata={"ai_reasoning": str(scan_row.get("ai_reasoning") or "")},
+            metadata={
+                "ai_reasoning": str(scan_row.get("ai_reasoning") or ""),
+                "atr_pct_frac": scan_row.get("atr_pct_frac"),
+                "atr_pct": scan_row.get("atr_pct"),
+            },
         )
-        return {
+        result = {
             "message": (
                 f"OPEN {order['direction']} {symbol} @ {_fmt(float(order['entry_price']))} | "
                 f"size={_fmt(float(order['size']), 6)} lev={_fmt(float(order['leverage']), 1)}x"
@@ -130,6 +160,9 @@ def maybe_execute(
             "signal": signal,
             "scan_row": scan_row,
         }
+        if basket:
+            result["basket_guard"] = basket
+        return result
     except Exception as exc:  # noqa: BLE001 - surface to dashboard
         return {"message": f"ERROR {symbol}: {exc}", "order": None, "signal": signal}
 

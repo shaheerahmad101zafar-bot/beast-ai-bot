@@ -10,6 +10,7 @@ __pycache__/
 *.log
 .DS_Store
 paper_portfolio.json
+state_backup.json
 trade_history.csv
 trade_history.json
 content/blogs/*.md

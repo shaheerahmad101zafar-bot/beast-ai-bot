@@ -127,6 +127,72 @@ class BinanceHttpWeightGuard:
                 )
             await asyncio.sleep(min(wait_s, 2.0))
 
+    async def request_json(
+        self,
+        method: str,
+        url: str,
+        *,
+        weight: int = 1,
+        label: str = "request",
+        params: dict[str, Any] | None = None,
+        timeout: float = 12.0,
+    ) -> dict[str, Any] | list[Any]:
+        """Weight-gated REST call with exponential backoff on 429/500/502/504."""
+        import aiohttp
+
+        await self.acquire(weight=weight, label=label)
+        delays = (0.4, 0.9, 1.8, 3.5, 7.0)
+        last_exc: Exception | None = None
+        for attempt, delay in enumerate(delays):
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.request(
+                        method.upper(),
+                        url,
+                        params=params,
+                        timeout=aiohttp.ClientTimeout(total=timeout),
+                    ) as resp:
+                        if resp.status in {429, 500, 502, 503, 504}:
+                            body = await resp.text()
+                            raise RuntimeError(f"Binance HTTP {resp.status}: {body[:180]}")
+                        resp.raise_for_status()
+                        return await resp.json(content_type=None)
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+                logger.warning(
+                    "Binance REST %s retry %s/%s after error: %s (sleep %.1fs)",
+                    label,
+                    attempt + 1,
+                    len(delays),
+                    exc,
+                    delay,
+                )
+                if attempt >= len(delays) - 1:
+                    break
+                await asyncio.sleep(delay)
+                await self.acquire(weight=weight, label=f"{label}:retry")
+        raise RuntimeError(f"Binance REST {label} failed after retries: {last_exc}")
+
+
+async def sync_open_orders_after_reconnect(mark_prices: dict[str, float] | None = None) -> dict[str, Any]:
+    """Restore and sync open order/position marks instantly after WS reconnect."""
+    try:
+        from bot_service import bot_service
+
+        marks = dict(mark_prices or {})
+        with bot_service._lock:  # noqa: SLF001
+            marks.update(bot_service._mark_prices)  # noqa: SLF001
+            result = bot_service.execution.sync_open_order_state(marks)
+        logger.info(
+            "WS reconnect synced %s open position(s); wallet=$%.2f",
+            result.get("synced_positions"),
+            float(result.get("wallet_balance") or 0.0),
+        )
+        return result
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Open-order sync after reconnect failed: %s", exc)
+        return {"ok": False, "detail": str(exc)}
+
 
 def symbol_to_stream(symbol: str) -> str:
     """BTC/USDT → btcusdt"""
@@ -469,6 +535,18 @@ class WebSocketHub:
                 f"Binance WS {msg_type}: {payload.get('base') or payload.get('from')}",
                 "stream",
             )
+            if msg_type == "binance_connected":
+                marks = {
+                    sym: float(tick.get("price") or 0.0)
+                    for sym, tick in self.ticks.items()
+                    if float(tick.get("price") or 0.0) > 0
+                }
+                sync_result = await sync_open_orders_after_reconnect(marks)
+                payload = {**payload, "order_sync": sync_result}
+                self.push_activity(
+                    f"Open-order sync restored {sync_result.get('synced_positions', 0)} position(s)",
+                    "stream",
+                )
             await self.manager.broadcast("market", payload)
             return
 
