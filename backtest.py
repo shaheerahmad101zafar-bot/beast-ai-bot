@@ -115,6 +115,8 @@ class Backtester:
 
         wins = sum(1 for t in trades if float(t.get("pnl_usd") or 0) > 0)
         total_pnl = sum(float(t.get("pnl_usd") or 0) for t in trades)
+        gross_profit = sum(max(0.0, float(t.get("pnl_usd") or 0.0)) for t in trades)
+        gross_loss = sum(abs(min(0.0, float(t.get("pnl_usd") or 0.0))) for t in trades)
         return {
             "ok": True,
             "symbol": symbol,
@@ -125,6 +127,7 @@ class Backtester:
             "win_rate_pct": round((wins / len(trades)) * 100, 2) if trades else 0.0,
             "max_drawdown_pct": round(drawdown * 100, 3),
             "cumulative_pnl_usd": round(total_pnl, 4),
+            "profit_factor": round(gross_profit / gross_loss, 3) if gross_loss > 0 else round(gross_profit, 3),
             "trade_count": len(trades),
             "equity_curve": curve,
             "trades": trades[-100:],

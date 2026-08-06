@@ -205,6 +205,9 @@ class BinanceFuturesListener:
         self.active_base: str | None = None
         self.last_error: str | None = None
         self.symbols: list[str] = list(config.DEFAULT_TRADING_PAIRS)
+        self.last_message_at: float | None = None
+        self.reconnect_attempts = 0
+        self.last_backoff_s = 0.0
 
     def set_symbols(self, symbols: list[str]) -> None:
         cleaned = [s for s in symbols if s]
@@ -244,6 +247,8 @@ class BinanceFuturesListener:
     async def _run(self) -> None:
         backoff = 1.0
         while not self._stop.is_set():
+            self.reconnect_attempts += 1
+            self.last_backoff_s = backoff
             connected_once = False
             for base in _binance_ws_bases():
                 if self._stop.is_set():
@@ -262,7 +267,10 @@ class BinanceFuturesListener:
                         self.active_base = base
                         self.last_error = None
                         connected_once = True
+                        self.reconnect_attempts = 0
                         backoff = 1.0
+                        self.last_backoff_s = backoff
+                        stale_ticks = 0
                         await self.on_message(
                             {
                                 "type": "binance_connected",
@@ -275,11 +283,17 @@ class BinanceFuturesListener:
                             try:
                                 raw = await asyncio.wait_for(ws.recv(), timeout=30)
                             except asyncio.TimeoutError:
+                                stale_ticks += 1
+                                logger.warning("Binance WS stalled on %s (%s/3)", base, stale_ticks)
+                                if stale_ticks >= 3:
+                                    raise TimeoutError(f"Binance WS stalled on {base}")
                                 continue
                             try:
                                 msg = json.loads(raw)
                             except json.JSONDecodeError:
                                 continue
+                            stale_ticks = 0
+                            self.last_message_at = asyncio.get_running_loop().time()
                             await self._handle(msg)
                 except asyncio.CancelledError:
                     raise
@@ -582,6 +596,13 @@ class WebSocketHub:
                 "symbols": self.listener.symbols,
                 "clients_market": self.manager.client_count("market"),
                 "clients_bot": self.manager.client_count("bot-status"),
+                "reconnect_attempts": self.listener.reconnect_attempts,
+                "reconnect_backoff_ms": round(self.listener.last_backoff_s * 1000, 1),
+                "last_message_age_ms": (
+                    round((asyncio.get_running_loop().time() - self.listener.last_message_at) * 1000, 1)
+                    if self.listener.last_message_at
+                    else None
+                ),
             },
             "sentiment_score": status.get("sentiment_score"),
             "sentiment_label": status.get("sentiment_label"),
@@ -653,7 +674,10 @@ class WebSocketHub:
             return
         action = msg.get("action")
         if action == "ping":
-            await self.manager.send_json(websocket, {"type": "pong", "ts": _utc_iso()})
+            await self.manager.send_json(
+                websocket,
+                {"type": "pong", "ts": _utc_iso(), "client_ts": msg.get("client_ts")},
+            )
             return
         if action == "subscribe_symbols" and channel == "market":
             symbols = msg.get("symbols") or []

@@ -31,15 +31,20 @@
   let chartEngineMode = localStorage.getItem("beast_chart_engine") || "beast";
   let deskMode = "auto";
   let marginMode = "isolated";
+  let uiMode = localStorage.getItem("beast_ui_mode") || "simple";
   let hftEnabled = false;
   let chartCandles = [];
   let chartSymbol = "BTC/USDT";
   let lastMarkets = [];
   let lastPositions = [];
   let knownPositionKeys = new Set();
+  let lastBookImbalance = null;
   let marketWs = null;
   let botWs = null;
   let wsRetryMs = 1000;
+  let pingLoop = null;
+  let lastPingSentAt = 0;
+  let lastWsPingMs = null;
 
   const els = {
     statusDot: document.getElementById("status-dot"),
@@ -104,7 +109,11 @@
     chartSymbol: document.getElementById("chart-symbol"),
     chartMeta: document.getElementById("chart-meta"),
     wsStatus: document.getElementById("ws-status"),
+    wsLatency: document.getElementById("ws-latency"),
     activityFeed: document.getElementById("activity-feed"),
+    qLiq: document.getElementById("q-liq"),
+    qObi: document.getElementById("q-obi"),
+    qFeed: document.getElementById("q-feed"),
     backtestChart: document.getElementById("backtest-chart"),
     backtestMeta: document.getElementById("backtest-meta"),
     backtestSymbol: document.getElementById("backtest-symbol"),
@@ -116,6 +125,10 @@
     btDrawdown: document.getElementById("bt-drawdown"),
     btPnl: document.getElementById("bt-pnl"),
     btTrades: document.getElementById("bt-trades"),
+    leaderWinrate: document.getElementById("leader-winrate"),
+    leaderProfitFactor: document.getElementById("leader-profit-factor"),
+    leaderDrawdown: document.getElementById("leader-drawdown"),
+    leaderSymbol: document.getElementById("leader-symbol"),
   };
 
   function wsUrl(path) {
@@ -128,6 +141,24 @@
     els.wsStatus.classList.remove("live", "idle", "down");
     els.wsStatus.classList.add(state);
     els.wsStatus.textContent = text;
+  }
+
+  function applyUiMode(mode) {
+    uiMode = mode === "pro" ? "pro" : "simple";
+    localStorage.setItem("beast_ui_mode", uiMode);
+    document.body.dataset.uiMode = uiMode;
+    document.querySelectorAll("[data-ui-mode]").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.uiMode === uiMode);
+      btn.classList.toggle("secondary", btn.dataset.uiMode !== uiMode);
+    });
+    if (uiMode === "simple") {
+      switchTab("trading");
+      deskMode = "auto";
+      document.getElementById("manual-desk")?.classList.add("hidden");
+      if (els.backtestMeta) {
+        els.backtestMeta.textContent = "Compact trading view · verified card stays visible";
+      }
+    }
   }
 
   function renderActivity(rows) {
@@ -291,9 +322,21 @@
       live ? "live" : "idle",
       live ? `WS live · ${stream.binance_base || "binance"}` : "WS hub · Binance reconnecting"
     );
+    if (els.wsLatency) {
+      const pingText = Number.isFinite(lastWsPingMs) ? `${fmt(lastWsPingMs, 1)} ms` : "— ms";
+      const ageText = Number.isFinite(stream.last_message_age_ms)
+        ? `feed age ${fmt(stream.last_message_age_ms, 0)} ms`
+        : "feed age —";
+      els.wsLatency.textContent = `Ping ${pingText} · ${ageText}`;
+    }
+    if (els.qFeed) {
+      const age = Number.isFinite(stream.last_message_age_ms) ? fmt(stream.last_message_age_ms, 0) : "—";
+      const backoff = Number.isFinite(stream.reconnect_backoff_ms) ? fmt(stream.reconnect_backoff_ms, 0) : "—";
+      els.qFeed.textContent = `${live ? "Healthy" : "Recovering"} · age ${age} ms · backoff ${backoff} ms`;
+    }
     els.footerClock.textContent = `Stream ${msg.server_time || msg.ts || "—"} · cycle #${
       msg.cycle || 0
-    }`;
+    } · ping ${Number.isFinite(lastWsPingMs) ? `${fmt(lastWsPingMs, 1)} ms` : "—"}`;
     if (typeof msg.sentiment_score === "number" && els.sentimentScore) {
       // lightweight sentiment update from hub; full headlines via slow REST
       els.sentimentScore.textContent = fmt(msg.sentiment_score, 1);
@@ -330,6 +373,14 @@
       }
       return;
     }
+    if (msg.type === "pong") {
+      const sentAt = Number(msg.client_ts || lastPingSentAt || 0);
+      if (sentAt > 0) {
+        lastWsPingMs = performance.now() - sentAt;
+        if (els.wsLatency) els.wsLatency.textContent = `Ping ${fmt(lastWsPingMs, 1)} ms`;
+      }
+      return;
+    }
     if ((msg.type === "mark_price" || msg.type === "book_ticker") && msg.symbol) {
       const price =
         msg.type === "mark_price" ? Number(msg.mark_price) : Number(msg.mid || msg.bid);
@@ -352,6 +403,18 @@
             asks: [[msg.ask, msg.ask_qty || 1]],
           });
         }
+        if (msg.bid_qty || msg.ask_qty) {
+          const bidQty = Number(msg.bid_qty || 0);
+          const askQty = Number(msg.ask_qty || 0);
+          const denom = bidQty + askQty;
+          lastBookImbalance = denom > 0 ? ((bidQty - askQty) / denom) * 100 : null;
+          if (els.qObi) {
+            const bias = lastBookImbalance >= 0 ? "Bid-led" : "Ask-led";
+            els.qObi.textContent = Number.isFinite(lastBookImbalance)
+              ? `${bias} · ${fmt(lastBookImbalance, 2)}%`
+              : "—";
+          }
+        }
       }
       if (msg.symbol === chartSymbol && els.chartMeta && price > 0) {
         els.chartMeta.textContent = `${chartSymbol} · tick ${fmt(price, price >= 100 ? 2 : 4)}`;
@@ -370,6 +433,13 @@
       setWsPill("live", "WS connected");
       marketWs.send(JSON.stringify({ action: "subscribe_symbols", symbols: watchlist }));
       marketWs.send(JSON.stringify({ action: "request_snapshot" }));
+      if (pingLoop) clearInterval(pingLoop);
+      pingLoop = setInterval(() => {
+        if (marketWs?.readyState === WebSocket.OPEN) {
+          lastPingSentAt = performance.now();
+          marketWs.send(JSON.stringify({ action: "ping", client_ts: lastPingSentAt }));
+        }
+      }, 15000);
     };
     marketWs.onmessage = (ev) => {
       try {
@@ -379,6 +449,10 @@
       }
     };
     marketWs.onclose = () => {
+      if (pingLoop) {
+        clearInterval(pingLoop);
+        pingLoop = null;
+      }
       setWsPill("down", "WS reconnecting…");
       setTimeout(connectMarketWs, wsRetryMs);
       wsRetryMs = Math.min(wsRetryMs * 1.6, 10000);
@@ -699,6 +773,7 @@
       const q = data.quant || {};
       const vpin = q.vpin || {};
       const regime = q.regime || {};
+      const liq = q.liquidation || {};
       const br = q.circuit_breaker || {};
       const hft = data.hft || {};
       const elV = document.getElementById("q-vpin");
@@ -712,6 +787,18 @@
         elB.className = `mini-value text-sm ${br.tripped ? "text-rose" : "text-teal"}`;
       }
       if (elH) elH.textContent = `${fmt(hft.stats?.last_latency_ms, 3)} ms`;
+      if (els.qLiq) {
+        const levels = Array.isArray(liq.levels) ? liq.levels : [];
+        const best = levels[0] || {};
+        els.qLiq.textContent = levels.length
+          ? `L ${fmt(best.long_density, 2)} · S ${fmt(best.short_density, 2)}`
+          : "No map yet";
+      }
+      if (els.qFeed) {
+        els.qFeed.textContent = Number.isFinite(lastWsPingMs)
+          ? `Healthy · ${fmt(lastWsPingMs, 1)} ms`
+          : "Warmup";
+      }
       hftEnabled = !!hft.enabled;
       const btn = document.getElementById("btn-hft-toggle");
       if (btn) btn.textContent = `HFT Scalper: ${hftEnabled ? "ON" : "OFF"}`;
@@ -948,6 +1035,14 @@
       els.btPnl.textContent = money(payload.cumulative_pnl_usd);
       els.btPnl.className = `mini-value ${pnlClass(payload.cumulative_pnl_usd)}`;
       els.btTrades.textContent = `${payload.trade_count || 0}`;
+      if (els.leaderWinrate) els.leaderWinrate.textContent = `${fmt(payload.win_rate_pct, 1)}%`;
+      if (els.leaderProfitFactor) {
+        els.leaderProfitFactor.textContent = fmt(payload.profit_factor, 2);
+      }
+      if (els.leaderDrawdown) els.leaderDrawdown.textContent = `${fmt(payload.max_drawdown_pct, 2)}%`;
+      if (els.leaderSymbol) {
+        els.leaderSymbol.textContent = `${payload.symbol} · ${payload.timeframe} · verified ${payload.days}d run`;
+      }
       if (els.backtestMeta) {
         els.backtestMeta.textContent = `${payload.symbol} · ${payload.timeframe} · ${payload.days}d`;
       }
@@ -1217,6 +1312,10 @@
     btn.addEventListener("click", () => setChartEngine(btn.dataset.chartEngine));
   });
 
+  document.querySelectorAll("[data-ui-mode]").forEach((btn) => {
+    btn.addEventListener("click", () => applyUiMode(btn.dataset.uiMode));
+  });
+
   document.querySelectorAll("[data-desk-mode]").forEach((btn) => {
     btn.addEventListener("click", () => {
       deskMode = btn.dataset.deskMode || "auto";
@@ -1317,6 +1416,7 @@
       els.billingBanner.classList.remove("hidden");
     }
     if (tab) switchTab(tab);
+    applyUiMode(uiMode);
     await loadUniverse().catch((err) => {
       els.watchMeta.textContent = `Using seeded top 50 · ${err.message}`;
     });

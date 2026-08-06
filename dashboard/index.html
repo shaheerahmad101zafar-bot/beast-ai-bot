@@ -61,6 +61,10 @@
         <div class="header-actions flex flex-col sm:flex-row sm:flex-wrap md:justify-end items-stretch sm:items-center gap-2 sm:gap-3 w-full md:w-auto md:max-w-xl">
           <div class="social-links hidden sm:flex" data-social-links aria-label="Social links"></div>
           <div id="user-chip" class="user-chip order-1"></div>
+          <div class="ui-mode-toggle order-2" role="group" aria-label="Interface mode">
+            <button id="btn-ui-simple" type="button" class="eng-btn active" data-ui-mode="simple">Simple AI Mode</button>
+            <button id="btn-ui-pro" type="button" class="eng-btn" data-ui-mode="pro">Institutional Pro Desk</button>
+          </div>
           <div class="flex flex-row gap-2 order-3 sm:order-2 w-full sm:w-auto">
             <button id="btn-logout" type="button" class="action-btn secondary flex-1 sm:flex-none">Log out</button>
             <button id="btn-connect-exchange" type="button" class="action-btn flex-1 sm:flex-none">
@@ -145,6 +149,7 @@
           </div>
           <select id="chart-symbol" class="watch-input !w-auto !py-1.5 text-sm"></select>
           <span id="ws-status" class="ws-pill idle">WS connecting…</span>
+          <span id="ws-latency" class="panel-meta">Ping — ms</span>
           <span id="chart-meta" class="panel-meta">Waiting for stream…</span>
         </div>
       </div>
@@ -187,16 +192,33 @@
           </div>
           <p id="manual-msg" class="text-xs text-mist mt-2"></p>
         </div>
-        <div id="quant-strip" class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div id="quant-strip" class="grid grid-cols-2 lg:grid-cols-4 gap-3" data-pro-only>
           <div class="mini-stat"><div class="mini-label">VPIN Toxicity</div><div id="q-vpin" class="mini-value">—</div></div>
           <div class="mini-stat"><div class="mini-label">Regime</div><div id="q-regime" class="mini-value text-sm">—</div></div>
           <div class="mini-stat"><div class="mini-label">Circuit Breaker</div><div id="q-breaker" class="mini-value text-sm">OK</div></div>
           <div class="mini-stat"><div class="mini-label">HFT Latency</div><div id="q-hft-lat" class="mini-value text-sm">—</div></div>
         </div>
+        <div id="pro-metrics-panel" class="grid grid-cols-1 md:grid-cols-3 gap-3" data-pro-only>
+          <div class="glass-panel p-4">
+            <div class="mini-label">Liquidation Heatmap</div>
+            <div id="q-liq" class="mini-value mt-2">—</div>
+            <p class="text-xs text-mist mt-2">Synthetic long/short liquidation density around mark.</p>
+          </div>
+          <div class="glass-panel p-4">
+            <div class="mini-label">Order Book Imbalance</div>
+            <div id="q-obi" class="mini-value mt-2">—</div>
+            <p class="text-xs text-mist mt-2">Bid/ask size skew from live top-of-book updates.</p>
+          </div>
+          <div class="glass-panel p-4">
+            <div class="mini-label">Feed Health</div>
+            <div id="q-feed" class="mini-value mt-2">—</div>
+            <p class="text-xs text-mist mt-2">WS age, reconnect backoff, and self-healing status.</p>
+          </div>
+        </div>
       </div>
     </section>
 
-    <section class="panel mb-6" id="news-panel">
+    <section class="panel mb-6" id="news-panel" data-pro-only>
       <div class="panel-head">
         <h2 class="panel-title">Live Crypto News &amp; Announcements</h2>
         <span id="news-meta" class="panel-meta">AI sentiment badges</span>
@@ -206,7 +228,7 @@
       </div>
     </section>
 
-    <section class="panel mb-6" id="subscribe">
+    <section class="panel mb-6" id="subscribe" data-pro-only>
       <div class="panel-head">
         <h2 class="panel-title">Live Market Sentiment</h2>
         <span id="sentiment-meta" class="panel-meta">Loading…</span>
@@ -329,7 +351,7 @@
         </div>
       </section>
 
-      <section class="panel mb-8">
+      <section class="panel mb-8" data-pro-only>
         <div class="panel-head">
           <h2 class="panel-title">30-Day Strategy Backtester</h2>
           <span id="backtest-meta" class="panel-meta">Win rate · Drawdown · Cumulative PnL</span>
@@ -356,6 +378,17 @@
         </div>
       </section>
     </section>
+
+    <aside class="verified-pnl-card" id="verified-pnl-card">
+      <div class="mini-label">Verified Backtest PnL</div>
+      <div class="verified-pnl-head">Strategy Audit</div>
+      <div class="verified-pnl-grid">
+        <div><span>Win Rate</span><strong id="leader-winrate">—</strong></div>
+        <div><span>Profit Factor</span><strong id="leader-profit-factor">—</strong></div>
+        <div><span>Max DD</span><strong id="leader-drawdown">—</strong></div>
+      </div>
+      <p id="leader-symbol" class="text-xs text-mist mt-3">Awaiting verified run…</p>
+    </aside>
 
     <section id="tab-copy" class="tab-panel hidden mb-8">
       <div class="panel">
