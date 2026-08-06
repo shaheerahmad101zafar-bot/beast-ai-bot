@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Beast AI Coin Diagnostic Terminal</title>
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body class="bg-ink text-slate-100 min-h-screen font-mono antialiased">
+  <div class="atmosphere" aria-hidden="true"></div>
+  <div class="app-shell relative z-10">
+    <header class="app-header">
+      <div class="app-header-inner flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+        <div>
+          <p class="brand-kicker"><a href="/app" class="hover:text-white">Trading Desk</a><span class="brand-sep">·</span><span>Coin Diagnostic Terminal</span></p>
+          <h1 class="font-display brand-title">Real-Time Intelligence Hub</h1>
+          <p class="brand-sub">Trade post-mortems, coin news, pump/dump meters, and order book liquidity intelligence.</p>
+        </div>
+        <div class="header-actions">
+          <a href="/app" class="action-btn secondary">Back to Desk</a>
+        </div>
+      </div>
+    </header>
+    <main class="app-main">
+      <section class="panel mb-6">
+        <div class="panel-head">
+          <h2 class="panel-title">Coin Diagnostic Menu</h2>
+          <span id="terminal-meta" class="panel-meta">Loading intelligence…</span>
+        </div>
+        <div id="terminal-grid" class="grid gap-4"></div>
+      </section>
+    </main>
+  </div>
+  <script>
+    const token = localStorage.getItem("beast_jwt");
+    async function fetchJson(url) {
+      const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (!res.ok) throw new Error(`${url} -> ${res.status}`);
+      return res.json();
+    }
+    function money(n) {
+      const x = Number(n || 0);
+      return `${x < 0 ? "-" : ""}$${Math.abs(x).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+    }
+    function renderCard(card) {
+      const mortems = (card.post_mortems || []).map((t) => `
+        <article class="stress-card">
+          <div class="stress-head"><strong>${t.pair || card.symbol}</strong><span class="${Number(t.pnl_usd || 0) >= 0 ? "pnl-pos" : "pnl-neg"}">${money(t.pnl_usd)}</span></div>
+          <p class="metric-tip">${t.analysis?.headline || "No post-mortem available."}</p>
+          <details class="reason-accordion"><summary>Exact post-mortem</summary><p>${(t.analysis?.details || []).join(" ")}</p></details>
+        </article>`).join("") || `<div class="empty">No closed trades logged for ${card.symbol}</div>`;
+      const news = (card.news || []).map((n) => `<li><strong>${n.badge}</strong> · ${n.title}</li>`).join("") || "<li>No fresh coin-filtered headlines.</li>";
+      return `<article class="panel">
+        <div class="panel-head">
+          <h3 class="panel-title">${card.symbol}</h3>
+          <span class="panel-meta">Pump ${card.surge?.pump || 0}% · Dump ${card.surge?.dump || 0}%</span>
+        </div>
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-4 px-1 pb-3">
+          <div class="glass-panel p-4">
+            <div class="mini-label">Pump / Dump Meter</div>
+            <div class="mini-value">1m ${card.surge?.vol_1m || 0}x</div>
+            <p class="metric-tip">5m ${card.surge?.vol_5m || 0}x · 1h ${card.surge?.vol_1h || 0}x relative volume surge.</p>
+          </div>
+          <div class="glass-panel p-4">
+            <div class="mini-label">Liquidity Depth</div>
+            <div class="mini-value">Bid ${money(card.depth?.bid_depth_usd)}</div>
+            <p class="metric-tip">Ask ${money(card.depth?.ask_depth_usd)} · imbalance ${card.depth?.imbalance_pct || 0}%</p>
+          </div>
+          <div class="glass-panel p-4">
+            <div class="mini-label">Coin News Pulse</div>
+            <ul class="headline-list">${news}</ul>
+          </div>
+        </div>
+        <div class="grid gap-3 px-1 pb-4">${mortems}</div>
+      </article>`;
+    }
+    (async () => {
+      try {
+        const data = await fetchJson("/api/diagnostic/terminal?limit=40");
+        document.getElementById("terminal-meta").textContent = `${(data.cards || []).length} coin dossiers · ${data.updated_at || ""}`;
+        document.getElementById("terminal-grid").innerHTML = (data.cards || []).map(renderCard).join("") || `<div class="empty">No diagnostics available.</div>`;
+      } catch (err) {
+        document.getElementById("terminal-meta").textContent = err.message;
+      }
+    })();
+  </script>
+</body>
+</html>

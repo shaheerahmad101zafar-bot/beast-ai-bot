@@ -54,10 +54,12 @@ from arbitrage_scanner import arbitrage_scanner
 from backup_engine import backup_engine
 from backtest import backtester
 from billing import billing
+from diagnostic_engine import diagnostic_engine
 from hft_scalper import hft_scalper
 from execution_ws import execution_ws
 from genetic_tuner import genetic_tuner
 from hedging_engine import hedging_engine
+from news_fetcher import news_fetcher
 from quantum_engine import quantum_engine
 from bot_service import bot_service
 from cms_engine import cms_engine
@@ -227,6 +229,21 @@ async def app_dashboard(request: Request):
     except HTTPException:
         return RedirectResponse(url="/?auth=login", status_code=302)
     return FileResponse(index)
+
+
+@app.get("/app/terminal")
+async def app_terminal(request: Request):
+    page = DASHBOARD_DIR / "terminal.html"
+    if not page.exists():
+        raise HTTPException(status_code=404, detail="Terminal missing")
+    token = request.cookies.get(config.AUTH_COOKIE_NAME)
+    if not token:
+        return RedirectResponse(url="/?auth=login", status_code=302)
+    try:
+        decode_token(token)
+    except HTTPException:
+        return RedirectResponse(url="/?auth=login", status_code=302)
+    return FileResponse(page)
 
 
 @app.get("/pricing")
@@ -822,6 +839,15 @@ async def api_news_feed(
     return await asyncio.to_thread(sentiment_engine.get_news_feed, limit)
 
 
+@app.get("/api/news/coin/{symbol}")
+async def api_coin_news(
+    symbol: str,
+    limit: int = Query(default=12, ge=1, le=30),
+    user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    return {"user_id": user.id, **(await asyncio.to_thread(news_fetcher.for_symbol, symbol, limit))}
+
+
 @app.get("/api/quant/snapshot")
 async def api_quant_snapshot(
     symbol: str = Query(default="BTC/USDT"),
@@ -840,6 +866,14 @@ async def api_quant_snapshot(
         "genetic_tuner": genetic_tuner.snapshot(),
         "execution_ws": execution_ws.status(),
     }
+
+
+@app.get("/api/diagnostic/terminal")
+async def api_diagnostic_terminal(
+    limit: int = Query(default=40, ge=5, le=100),
+    user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    return {"user_id": user.id, **(await asyncio.to_thread(diagnostic_engine.snapshot, limit))}
 
 
 @app.get("/api/hft/status")

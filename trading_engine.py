@@ -11,6 +11,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+import requests
 
 import config
 from quantum_engine import quantum_engine
@@ -135,6 +136,38 @@ class TradingEngine:
             "reason": reason or "pass",
         }
 
+    @staticmethod
+    def _funding_rate(symbol: str) -> float:
+        raw = symbol.replace("/", "")
+        try:
+            resp = requests.get(
+                "https://fapi.binance.com/fapi/v1/premiumIndex",
+                params={"symbol": raw},
+                timeout=6,
+            )
+            resp.raise_for_status()
+            return float(resp.json().get("lastFundingRate") or 0.0)
+        except Exception:
+            return 0.0
+
+    @staticmethod
+    def _depth_ok(symbol: str, mark: float) -> dict[str, Any]:
+        raw = symbol.replace("/", "")
+        try:
+            resp = requests.get(
+                "https://fapi.binance.com/fapi/v1/depth",
+                params={"symbol": raw, "limit": 5},
+                timeout=6,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            best_bid = float((data.get("bids") or [[mark, 0]])[0][0])
+            best_ask = float((data.get("asks") or [[mark, 0]])[0][0])
+            slippage_pct = abs(best_ask - best_bid) / max(mark, 1e-9) * 100
+            return {"ok": slippage_pct < 0.05, "slippage_pct": round(slippage_pct, 4)}
+        except Exception:
+            return {"ok": True, "slippage_pct": 0.0}
+
     def evaluate(
         self,
         df: pd.DataFrame,
@@ -207,6 +240,18 @@ class TradingEngine:
             final = "HOLD"
             conf = min(conf, 25.0)
 
+        funding_rate = self._funding_rate(symbol) if final in {"BUY", "SELL"} else 0.0
+        depth_guard = self._depth_ok(symbol, mark) if final in {"BUY", "SELL"} else {"ok": True, "slippage_pct": 0.0}
+        if final == "BUY" and funding_rate >= 0.0008:
+            final = "HOLD"
+            conf = 0.0
+        if final == "SELL" and funding_rate <= -0.0008:
+            final = "HOLD"
+            conf = 0.0
+        if final in {"BUY", "SELL"} and not depth_guard["ok"]:
+            final = "HOLD"
+            conf = 0.0
+
         if not quantum_engine.trading_allowed():
             final = "HOLD"
             conf = 0.0
@@ -238,6 +283,8 @@ class TradingEngine:
             "rl_policy": policy,
             "liquidation": quantum_engine.liquidation_heatmap(symbol),
             "vpin": quantum_engine.toxicity_label(symbol),
+            "funding_rate": round(funding_rate, 6),
+            "depth_guard": depth_guard,
             "ai_reasoning": self._build_reasoning(
                 final,
                 votes,
