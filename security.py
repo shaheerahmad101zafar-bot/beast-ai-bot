@@ -15,6 +15,7 @@ from urllib.parse import urlparse
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from models import decrypt_api_secret, encrypt_api_secret
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
@@ -242,3 +243,11 @@ def origin_host(origin: str) -> str:
         return urlparse(origin).netloc
     except Exception:
         return origin
+
+
+def secure_encrypt_api_secret(value: str) -> str:
+    return encrypt_api_secret(value)
+
+
+def secure_decrypt_api_secret(value: str) -> str:
+    return decrypt_api_secret(value)

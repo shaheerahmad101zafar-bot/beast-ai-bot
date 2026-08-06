@@ -21,6 +21,8 @@ from dotenv import load_dotenv
 import websockets
 
 import config
+from rate_limiter import binance_bucket
+from time_sync import time_sync
 
 
 class BinanceWsExecutionClient:
@@ -51,6 +53,7 @@ class BinanceWsExecutionClient:
     ) -> dict[str, Any]:
         started = time.perf_counter()
         client_id = client_order_id or f"beast-{uuid.uuid4().hex[:10]}"
+        await binance_bucket.acquire(1)
         if not self.live_ready:
             latency = (time.perf_counter() - started) * 1000
             self.last_latency_ms = latency
@@ -79,7 +82,7 @@ class BinanceWsExecutionClient:
             "reduceOnly": "true" if reduce_only else "false",
             "side": side,
             "symbol": symbol.replace("/", ""),
-            "timestamp": int(time.time() * 1000),
+            "timestamp": time_sync.now_ms(),
             "type": "MARKET",
         }
         params["signature"] = self._sign(params)

@@ -67,11 +67,12 @@ from news_fetcher import news_fetcher
 from quant_metrics import quant_metrics
 from quantum_engine import quantum_engine
 from system_health import system_health
+from time_sync import time_sync
 from bot_service import bot_service
 from cms_engine import cms_engine
 from copy_trader import copy_trader
 from database import SessionLocal, User, UserApiKey, init_db
-from models import encrypt_api_secret
+from security import secure_encrypt_api_secret as encrypt_api_secret
 from market_scanner import market_scanner
 from payments import payments
 from security import configure_security, sanitize_cms_content
@@ -81,6 +82,7 @@ from system_health import collect_system_health
 from telegram_bot import telegram_notifier
 from vault import vault
 from websocket_manager import binance_http_guard, ws_hub
+from state_manager import state_manager
 
 
 class ToggleRequest(BaseModel):
@@ -176,11 +178,13 @@ async def lifespan(app: FastAPI):
     except Exception:
         pass
     await ws_hub.start()
+    await time_sync.start()
     await arbitrage_scanner.start()
     await genetic_tuner.start()
     await liquidation_hunter.start()
     await backup_engine.start()
     await system_health.start(bot_service.execution.save)
+    await asyncio.to_thread(state_manager.hydrate, bot_service)
     # Upgrade seeded top-50 pairs to live Binance volume ranking in background.
     try:
         await asyncio.to_thread(market_scanner.refresh_live_universe)
@@ -196,6 +200,7 @@ async def lifespan(app: FastAPI):
     await liquidation_hunter.stop()
     await backup_engine.stop()
     await system_health.stop()
+    await time_sync.stop()
     await ws_hub.stop()
     bot_service.shutdown()
     market_scanner.close()
@@ -881,6 +886,7 @@ async def api_quant_snapshot(
         "macro_guard": macro_guard.snapshot(),
         "liquidation_hunter": liquidation_hunter.snapshot(),
         "system_health": system_health.snapshot(),
+        "time_sync": time_sync.snapshot(),
     }
 
 

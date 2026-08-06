@@ -23,6 +23,7 @@ import config
 from database import ring_buffer
 from fast_json import loads
 from network_tuning import apply_global_socket_tuning
+from rate_limiter import binance_bucket
 from websocket_aggregator import websocket_aggregator
 
 apply_global_socket_tuning()
@@ -105,6 +106,7 @@ class BinanceHttpWeightGuard:
 
     async def acquire(self, weight: int = 1, label: str = "request") -> None:
         loop = asyncio.get_running_loop()
+        await binance_bucket.acquire(weight)
         while True:
             async with self._lock:
                 now = loop.time()

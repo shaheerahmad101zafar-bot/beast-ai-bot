@@ -17,7 +17,8 @@ import ccxt
 from cryptography.fernet import Fernet, InvalidToken
 
 import config
-from models import decrypt_api_secret, encrypt_api_secret
+from security import secure_decrypt_api_secret as decrypt_api_secret
+from security import secure_encrypt_api_secret as encrypt_api_secret
 
 SENSITIVE_FIELDS = {"api_key", "api_secret", "passphrase"}
 
