@@ -328,6 +328,33 @@
           </table>
         </div>
       </section>
+
+      <section class="panel mb-8">
+        <div class="panel-head">
+          <h2 class="panel-title">30-Day Strategy Backtester</h2>
+          <span id="backtest-meta" class="panel-meta">Win rate · Drawdown · Cumulative PnL</span>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4 px-1 pb-4">
+          <div>
+            <canvas id="backtest-chart" class="backtest-chart" height="220" aria-label="Backtest equity curve"></canvas>
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+              <div class="mini-stat"><div class="mini-label">Win Rate</div><div id="bt-winrate" class="mini-value">—</div></div>
+              <div class="mini-stat"><div class="mini-label">Max DD</div><div id="bt-drawdown" class="mini-value">—</div></div>
+              <div class="mini-stat"><div class="mini-label">Cumulative PnL</div><div id="bt-pnl" class="mini-value">—</div></div>
+              <div class="mini-stat"><div class="mini-label">Trades</div><div id="bt-trades" class="mini-value">—</div></div>
+            </div>
+          </div>
+          <div class="glass-panel p-4 min-w-0 lg:w-72">
+            <label class="form-field"><span>Symbol</span><input id="backtest-symbol" type="text" value="BTC/USDT" /></label>
+            <label class="form-field mt-3"><span>Timeframe</span>
+              <select id="backtest-timeframe"><option value="15m">15m</option><option value="1h" selected>1h</option><option value="4h">4h</option></select>
+            </label>
+            <label class="form-field mt-3"><span>Days</span><input id="backtest-days" type="number" min="7" max="90" value="30" /></label>
+            <button id="btn-run-backtest" type="button" class="action-btn w-full mt-4">Run Backtest</button>
+            <p id="backtest-msg" class="text-xs text-mist mt-3">Loads a rolling 30-day strategy simulation.</p>
+          </div>
+        </div>
+      </section>
     </section>
 
     <section id="tab-copy" class="tab-panel hidden mb-8">

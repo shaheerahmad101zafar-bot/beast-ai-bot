@@ -19,6 +19,7 @@ from typing import Any
 from dotenv import load_dotenv
 
 import config
+from notifications import notifications
 from trade_logger import TradeLogger
 
 
@@ -248,7 +249,12 @@ class ExecutionEngine:
         }
         self.positions[symbol] = position
         self._save_portfolio()
-        return {"status": "filled", "mode": self.mode.value, **position}
+        result = {"status": "filled", "mode": self.mode.value, **position}
+        try:
+            notifications.notify_order_execution({**result, "pair": symbol})
+        except Exception:
+            pass
+        return result
 
     def _paper_close(
         self,
@@ -293,6 +299,10 @@ class ExecutionEngine:
         self.realized_pnl = round(self.realized_pnl + trade["pnl_usd"], 4)
         self.trade_logger.log_trade(trade)
         self._save_portfolio()
+        try:
+            notifications.notify_order_close(trade)
+        except Exception:
+            pass
         return trade
 
     # ------------------------------------------------------------------

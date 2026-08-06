@@ -105,6 +105,17 @@
     chartMeta: document.getElementById("chart-meta"),
     wsStatus: document.getElementById("ws-status"),
     activityFeed: document.getElementById("activity-feed"),
+    backtestChart: document.getElementById("backtest-chart"),
+    backtestMeta: document.getElementById("backtest-meta"),
+    backtestSymbol: document.getElementById("backtest-symbol"),
+    backtestTimeframe: document.getElementById("backtest-timeframe"),
+    backtestDays: document.getElementById("backtest-days"),
+    btnRunBacktest: document.getElementById("btn-run-backtest"),
+    backtestMsg: document.getElementById("backtest-msg"),
+    btWinrate: document.getElementById("bt-winrate"),
+    btDrawdown: document.getElementById("bt-drawdown"),
+    btPnl: document.getElementById("bt-pnl"),
+    btTrades: document.getElementById("bt-trades"),
   };
 
   function wsUrl(path) {
@@ -883,6 +894,76 @@
     }
   }
 
+  function drawBacktestCurve(points) {
+    const canvas = els.backtestChart;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.max(320, Math.floor(rect.width || 640));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    if (!points || !points.length) return;
+    const vals = points.map((p) => Number(p.equity || 0));
+    const min = Math.min(...vals);
+    const max = Math.max(...vals);
+    const span = Math.max(1, max - min);
+    ctx.strokeStyle = "rgba(0, 217, 246, 0.25)";
+    ctx.beginPath();
+    for (let i = 0; i < 4; i += 1) {
+      const y = 20 + (i * (h - 40)) / 3;
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+    }
+    ctx.stroke();
+    ctx.strokeStyle = "#00F5A0";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    points.forEach((p, i) => {
+      const x = (i / Math.max(1, points.length - 1)) * (w - 24) + 12;
+      const y = h - 20 - ((Number(p.equity || 0) - min) / span) * (h - 40);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  }
+
+  async function runBacktest() {
+    if (!els.btnRunBacktest) return;
+    els.btnRunBacktest.disabled = true;
+    if (els.backtestMsg) els.backtestMsg.textContent = "Running 30-day simulation…";
+    try {
+      const payload = await fetchJson("/api/backtest", {
+        method: "POST",
+        body: JSON.stringify({
+          symbol: (els.backtestSymbol?.value || chartSymbol || "BTC/USDT").trim(),
+          timeframe: els.backtestTimeframe?.value || "1h",
+          days: Number(els.backtestDays?.value || 30),
+          starting_balance: 1000,
+        }),
+      });
+      els.btWinrate.textContent = `${fmt(payload.win_rate_pct, 1)}%`;
+      els.btDrawdown.textContent = `${fmt(payload.max_drawdown_pct, 2)}%`;
+      els.btPnl.textContent = money(payload.cumulative_pnl_usd);
+      els.btPnl.className = `mini-value ${pnlClass(payload.cumulative_pnl_usd)}`;
+      els.btTrades.textContent = `${payload.trade_count || 0}`;
+      if (els.backtestMeta) {
+        els.backtestMeta.textContent = `${payload.symbol} · ${payload.timeframe} · ${payload.days}d`;
+      }
+      if (els.backtestMsg) {
+        els.backtestMsg.textContent = `Ending equity ${money(payload.ending_equity)} from ${money(
+          payload.starting_balance
+        )}`;
+      }
+      drawBacktestCurve(payload.equity_curve || []);
+    } catch (err) {
+      if (els.backtestMsg) els.backtestMsg.textContent = err.message;
+    } finally {
+      els.btnRunBacktest.disabled = false;
+    }
+  }
+
   async function refresh() {
     // Fallback REST path when WS is down
     try {
@@ -967,6 +1048,12 @@
       loadBilling().catch((err) => {
         if (els.billingMeta) els.billingMeta.textContent = err.message;
       });
+    });
+  }
+
+  if (els.btnRunBacktest) {
+    els.btnRunBacktest.addEventListener("click", () => {
+      runBacktest().catch(console.error);
     });
   }
 
@@ -1244,6 +1331,7 @@
     connectMarketWs();
     connectBotWs();
     await refreshSecondary();
+    await runBacktest().catch(console.error);
     if (tab === "billing") await loadBilling().catch(console.error);
     // Slow REST for non-stream panels; trading desk is WebSocket-driven
     setInterval(refreshSecondary, SLOW_REFRESH_MS);

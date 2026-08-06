@@ -231,6 +231,14 @@ def get_current_user(
     return user
 
 
+def ensure_same_user(requested_user_id: int | None, user: User) -> None:
+    """Reject cross-user access on wallet/trade style endpoints."""
+    if requested_user_id is None:
+        return
+    if int(requested_user_id) != int(user.id):
+        raise HTTPException(status_code=403, detail="User isolation violation")
+
+
 def resolve_optional_user(request: Request) -> User | None:
     token = _extract_token(request, None)
     if not token:

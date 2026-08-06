@@ -17,6 +17,7 @@ import ccxt
 from cryptography.fernet import Fernet, InvalidToken
 
 import config
+from models import decrypt_api_secret, encrypt_api_secret
 
 SENSITIVE_FIELDS = {"api_key", "api_secret", "passphrase"}
 
@@ -122,9 +123,11 @@ class CredentialVault:
             "exchange": exchange,
             "ccxt_id": self.ccxt_id(exchange),
             "role": role,
-            "api_key": api_key.strip(),
-            "api_secret": api_secret.strip(),
-            "passphrase": (passphrase or "").strip() or None,
+            "api_key": encrypt_api_secret(api_key.strip()),
+            "api_secret": encrypt_api_secret(api_secret.strip()),
+            "passphrase": (
+                encrypt_api_secret((passphrase or "").strip()) if (passphrase or "").strip() else None
+            ),
             "paper_mode": bool(paper_mode),
             "equity_hint": float(equity_hint) if equity_hint is not None else None,
             "permissions": permissions or {},
@@ -173,7 +176,10 @@ class CredentialVault:
     @staticmethod
     def public_view(account: dict[str, Any]) -> dict[str, Any]:
         view = {k: v for k, v in account.items() if k not in SENSITIVE_FIELDS}
-        key = account.get("api_key") or ""
+        try:
+            key = decrypt_api_secret(account.get("api_key") or "")
+        except Exception:
+            key = ""
         view["api_key_masked"] = (
             f"{key[:4]}…{key[-4:]}" if len(key) >= 8 else "****"
         )
@@ -184,13 +190,13 @@ class CredentialVault:
         exchange_id = account.get("ccxt_id") or self.ccxt_id(account["exchange"])
         klass = getattr(ccxt, exchange_id)
         params: dict[str, Any] = {
-            "apiKey": account["api_key"],
-            "secret": account["api_secret"],
+            "apiKey": decrypt_api_secret(account["api_key"]),
+            "secret": decrypt_api_secret(account["api_secret"]),
             "enableRateLimit": True,
             "options": {"defaultType": "swap"},
         }
         if account.get("passphrase"):
-            params["password"] = account["passphrase"]
+            params["password"] = decrypt_api_secret(account["passphrase"])
         return klass(params)
 
     def validate_connection(

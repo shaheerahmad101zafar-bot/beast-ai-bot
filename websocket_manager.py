@@ -11,6 +11,7 @@ import asyncio
 import json
 import logging
 import socket
+from collections import deque
 from datetime import datetime, timezone
 from typing import Any, Literal
 from urllib.parse import urlparse
@@ -87,6 +88,37 @@ def _binance_ws_bases() -> tuple[str, ...]:
 
 def _utc_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+class BinanceHttpWeightGuard:
+    """Simple rolling-window guard for Binance REST request weight."""
+
+    def __init__(self, per_minute_limit: int = config.BINANCE_HTTP_WEIGHT_LIMIT_PER_MIN) -> None:
+        self.per_minute_limit = max(100, int(per_minute_limit))
+        self._events: deque[tuple[float, int]] = deque()
+        self._lock = asyncio.Lock()
+
+    async def acquire(self, weight: int = 1, label: str = "request") -> None:
+        loop = asyncio.get_running_loop()
+        while True:
+            async with self._lock:
+                now = loop.time()
+                while self._events and now - self._events[0][0] >= 60.0:
+                    self._events.popleft()
+                used = sum(w for _, w in self._events)
+                if used + weight <= self.per_minute_limit:
+                    self._events.append((now, weight))
+                    return
+                wait_s = max(0.05, 60.0 - (now - self._events[0][0]))
+                logger.warning(
+                    "Binance REST throttle %s delayed %.2fs (used=%s weight=%s limit=%s)",
+                    label,
+                    wait_s,
+                    used,
+                    weight,
+                    self.per_minute_limit,
+                )
+            await asyncio.sleep(min(wait_s, 2.0))
 
 
 def symbol_to_stream(symbol: str) -> str:
@@ -641,3 +673,4 @@ class WebSocketHub:
 
 
 ws_hub = WebSocketHub()
+binance_http_guard = BinanceHttpWeightGuard()

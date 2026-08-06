@@ -156,9 +156,15 @@ class PaymentLog(Base):
     user: Mapped[User | None] = relationship(back_populates="payments")
 
 
+_db_url = str(config.DATABASE_URL)
+_connect_args: dict[str, object] = {}
+if _db_url.startswith("sqlite"):
+    _connect_args["check_same_thread"] = False
+
 engine = create_engine(
-    config.DATABASE_URL,
-    connect_args={"check_same_thread": False},
+    _db_url,
+    connect_args=_connect_args,
+    pool_pre_ping=True,
     future=True,
 )
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)

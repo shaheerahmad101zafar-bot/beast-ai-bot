@@ -167,7 +167,11 @@ SUPPORTED_EXCHANGES: Final[dict[str, str]] = {
 # ---------------------------------------------------------------------------
 # Auth / Database / Scanner
 # ---------------------------------------------------------------------------
-DATABASE_URL: Final[str] = "sqlite:///beast_app.db"
+DATABASE_URL: Final[str] = (
+    os.getenv("DATABASE_URL", "").strip()
+    or os.getenv("SUPABASE_DB_URL", "").strip()
+    or "sqlite:///beast_app.db"
+)
 JWT_SECRET_ENV: Final[str] = "JWT_SECRET"
 JWT_ALGORITHM: Final[str] = "HS256"
 JWT_EXPIRE_HOURS: Final[int] = 72
@@ -177,6 +181,11 @@ ADMIN_PASSWORD_ENV: Final[str] = "ADMIN_PASSWORD"
 DEFAULT_ADMIN_EMAIL: Final[str] = "admin@example.com"
 DEFAULT_ADMIN_PASSWORD: Final[str] = "AdminPass123!"
 CMS_CONTENT_PATH: Final[str] = "content/cms_content.json"
+API_CIPHER_KEY_ENV: Final[str] = "API_CIPHER_KEY"
+BACKTEST_LOOKBACK_DAYS: Final[int] = int(os.getenv("BACKTEST_LOOKBACK_DAYS", "30"))
+BINANCE_HTTP_WEIGHT_LIMIT_PER_MIN: Final[int] = int(
+    os.getenv("BINANCE_HTTP_WEIGHT_LIMIT_PER_MIN", "1100")
+)
 
 # ---------------------------------------------------------------------------
 # Security / Backups (Phase 13)

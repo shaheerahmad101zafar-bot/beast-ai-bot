@@ -239,6 +239,16 @@ canvas {
   overflow: hidden;
 }
 
+.backtest-chart {
+  width: 100%;
+  min-height: 220px;
+  border: 1px solid rgba(30, 51, 68, 0.75);
+  border-radius: 0.9rem;
+  background:
+    linear-gradient(180deg, rgba(45, 212, 191, 0.05), transparent 45%),
+    rgba(6, 12, 18, 0.95);
+}
+
 .panel-head {
   display: flex;
   flex-wrap: wrap;

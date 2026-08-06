@@ -26,6 +26,7 @@ from auth import (
     create_access_token,
     authenticate_user,
     decode_token,
+    ensure_same_user,
     get_current_user,
     get_db,
     google_oauth_callback,
@@ -50,13 +51,15 @@ from oauth_auth import (
 )
 from admin_settings import admin_settings
 from backup_engine import backup_engine
+from backtest import backtester
 from billing import billing
 from hft_scalper import hft_scalper
 from quantum_engine import quantum_engine
 from bot_service import bot_service
 from cms_engine import cms_engine
 from copy_trader import copy_trader
-from database import SessionLocal, User, init_db
+from database import SessionLocal, User, UserApiKey, init_db
+from models import encrypt_api_secret
 from market_scanner import market_scanner
 from payments import payments
 from security import configure_security, sanitize_cms_content
@@ -65,7 +68,7 @@ from sentiment_engine import sentiment_engine
 from system_health import collect_system_health
 from telegram_bot import telegram_notifier
 from vault import vault
-from websocket_manager import ws_hub
+from websocket_manager import binance_http_guard, ws_hub
 
 
 class ToggleRequest(BaseModel):
@@ -117,6 +120,13 @@ class CheckoutRequest(BaseModel):
 
 class CMSUpdateRequest(BaseModel):
     content: dict[str, Any] = Field(default_factory=dict)
+
+
+class BacktestRequest(BaseModel):
+    symbol: str = "BTC/USDT"
+    timeframe: str = "1h"
+    days: int = Field(default=config.BACKTEST_LOOKBACK_DAYS, ge=7, le=90)
+    starting_balance: float = Field(default=1000.0, ge=100.0, le=1_000_000.0)
 
 
 class AdminSettingsUpdateRequest(BaseModel):
@@ -401,6 +411,7 @@ async def api_market_ohlcv(
 ) -> dict[str, Any]:
     """Bootstrap candles for TradingView Lightweight Charts."""
     try:
+        await binance_http_guard.acquire(weight=2, label=f"ohlcv:{symbol}:{timeframe}")
         df = await bot_service.market.fetch_ohlcv_async(symbol, timeframe=timeframe, limit=limit)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -720,15 +731,44 @@ async def api_status() -> dict[str, Any]:
 
 
 @app.get("/api/portfolio")
-async def api_portfolio() -> dict[str, Any]:
-    return bot_service.get_portfolio()
+async def api_portfolio(user: User = Depends(get_current_user)) -> dict[str, Any]:
+    return {"user_id": user.id, **bot_service.get_portfolio()}
 
 
 @app.get("/api/trade-history")
 async def api_trade_history(
     limit: int = Query(default=100, ge=1, le=1000),
+    user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
-    return bot_service.get_trade_history(limit=limit)
+    return {"user_id": user.id, **bot_service.get_trade_history(limit=limit)}
+
+
+@app.get("/api/wallet")
+async def api_wallet(
+    user_id: int | None = Query(default=None),
+    user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    ensure_same_user(user_id, user)
+    portfolio = bot_service.get_portfolio()
+    return {
+        "ok": True,
+        "user_id": user.id,
+        "wallet_balance": float(portfolio.get("wallet_balance") or 0.0),
+        "available_balance": float(portfolio.get("available_balance") or 0.0),
+        "equity": float(portfolio.get("equity") or 0.0),
+        "mode": portfolio.get("mode"),
+    }
+
+
+@app.get("/api/trades")
+async def api_trades(
+    limit: int = Query(default=100, ge=1, le=1000),
+    user_id: int | None = Query(default=None),
+    user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    ensure_same_user(user_id, user)
+    history = bot_service.get_trade_history(limit=limit)
+    return {"ok": True, "user_id": user.id, **history}
 
 
 @app.post("/api/bot/toggle")
@@ -883,9 +923,17 @@ async def api_seo_generate(force: bool = Query(default=False)) -> dict[str, Any]
 
 
 @app.post("/api/exchange/connect")
-async def api_exchange_connect(body: ExchangeConnectRequest) -> dict[str, Any]:
+async def api_exchange_connect(
+    body: ExchangeConnectRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
     try:
-        current = len(vault.list_accounts())
+        current = (
+            db.query(UserApiKey)
+            .filter(UserApiKey.user_id == user.id)
+            .count()
+        )
         billing.assert_can_connect_exchange(current)
         # Master/follower mapping is a Pro+ feature
         if body.role in {"master", "follower"}:
@@ -919,6 +967,21 @@ async def api_exchange_connect(body: ExchangeConnectRequest) -> dict[str, Any]:
         permissions=validation.get("permissions"),
     )
     account["equity"] = validation.get("equity")
+    account["user_id"] = user.id
+    db_key = (
+        db.query(UserApiKey)
+        .filter(UserApiKey.user_id == user.id, UserApiKey.exchange == body.exchange)
+        .first()
+    )
+    if not db_key:
+        db_key = UserApiKey(user_id=user.id, exchange=body.exchange)
+        db.add(db_key)
+    db_key.label = body.label
+    db_key.role = body.role
+    db_key.api_key_enc = encrypt_api_secret(body.api_key)
+    db_key.api_secret_enc = encrypt_api_secret(body.api_secret)
+    db_key.passphrase_enc = encrypt_api_secret(body.passphrase) if body.passphrase else None
+    db.commit()
     account["validation"] = {
         "can_read": validation.get("can_read"),
         "can_trade": validation.get("can_trade"),
@@ -930,12 +993,45 @@ async def api_exchange_connect(body: ExchangeConnectRequest) -> dict[str, Any]:
 
 
 @app.get("/api/exchange/accounts")
-async def api_exchange_accounts() -> dict[str, Any]:
+async def api_exchange_accounts(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    rows = db.query(UserApiKey).filter(UserApiKey.user_id == user.id).all()
+    accounts = [
+        {
+            "id": row.id,
+            "exchange": row.exchange,
+            "label": row.label,
+            "role": row.role,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "api_key_masked": "****",
+        }
+        for row in rows
+    ]
     return {
-        "master": vault.get_master(include_secrets=False),
-        "accounts": vault.list_accounts(),
+        "user_id": user.id,
+        "master": next((a for a in accounts if a.get("role") == "master"), None),
+        "accounts": accounts,
         "supported_exchanges": list(config.SUPPORTED_EXCHANGES.keys()),
     }
+
+
+@app.post("/api/backtest")
+async def api_backtest(
+    body: BacktestRequest,
+    user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    result = await asyncio.to_thread(
+        backtester.run,
+        symbol=str(body.symbol or "BTC/USDT").upper().replace("-", "/"),
+        timeframe=body.timeframe,
+        days=body.days,
+        starting_balance=body.starting_balance,
+    )
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("detail") or "Backtest failed")
+    return {"ok": True, "user_id": user.id, **result}
 
 
 @app.get("/api/copy-trading/followers")
