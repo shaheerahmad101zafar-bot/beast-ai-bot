@@ -178,6 +178,12 @@ async def lifespan(app: FastAPI):
     except Exception:
         pass
     await ws_hub.start()
+    try:
+        from micro_exec_pool import micro_exec_pool
+
+        await asyncio.to_thread(micro_exec_pool.start)
+    except Exception:
+        pass
     await time_sync.start()
     await arbitrage_scanner.start()
     await genetic_tuner.start()
@@ -204,6 +210,12 @@ async def lifespan(app: FastAPI):
     await system_health.stop()
     await time_sync.stop()
     await ws_hub.stop()
+    try:
+        from micro_exec_pool import micro_exec_pool
+
+        micro_exec_pool.shutdown()
+    except Exception:
+        pass
     bot_service.shutdown()
     market_scanner.close()
 

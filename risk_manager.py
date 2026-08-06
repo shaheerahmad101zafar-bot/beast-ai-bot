@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections import defaultdict, deque
 from typing import Any
+import time
 
 import numpy as np
 
@@ -277,6 +278,93 @@ class RiskManager:
             "risk_pct": self.risk_per_trade,
         }
 
+    # ------------------------------------------------------------------
+    # Live funding-rate arbitrage / bleed guard
+    # ------------------------------------------------------------------
+    def refresh_funding_rates(self, symbols: list[str] | None = None) -> dict[str, float]:
+        """Fetch Binance USD-M premiumIndex funding for active pairs."""
+        import requests
+
+        out: dict[str, float] = {}
+        wanted = [str(s).upper().replace("-", "/") for s in (symbols or [])]
+        try:
+            resp = requests.get("https://fapi.binance.com/fapi/v1/premiumIndex", timeout=8)
+            if resp.status_code in {429, 500, 502, 503, 504}:
+                # soft fail — keep prior cache
+                return dict(getattr(self, "_funding_cache", {}) or {})
+            resp.raise_for_status()
+            rows = resp.json()
+            if isinstance(rows, dict):
+                rows = [rows]
+            for row in rows or []:
+                raw = str(row.get("symbol") or "")
+                if not raw.endswith("USDT"):
+                    continue
+                display = f"{raw[:-4]}/USDT"
+                if wanted and display not in wanted and raw not in {
+                    w.replace("/", "") for w in wanted
+                }:
+                    continue
+                rate = float(row.get("lastFundingRate") or 0.0)
+                out[display] = rate
+            self._funding_cache = out
+            self._funding_updated_at = time.time()
+        except Exception:
+            out = dict(getattr(self, "_funding_cache", {}) or {})
+        return out
+
+    def funding_bleed_guard(
+        self,
+        symbol: str,
+        direction: str,
+        funding_rate: float | None = None,
+    ) -> dict[str, Any]:
+        """
+        Halt new entries (or flag micro-hedge) when |funding| > 0.05% per cycle
+        and the position would pay the funding side.
+        """
+        import time as _time
+
+        threshold = float(getattr(config, "FUNDING_BLEED_THRESHOLD", 0.0005))
+        rate = funding_rate
+        if rate is None:
+            cache = getattr(self, "_funding_cache", {}) or {}
+            # refresh at most every 60s
+            if time.time() - float(getattr(self, "_funding_updated_at", 0.0) or 0.0) > 60:
+                self.refresh_funding_rates([symbol])
+                cache = getattr(self, "_funding_cache", {}) or {}
+            rate = float(cache.get(str(symbol).upper()) or 0.0)
+
+        direction = str(direction or "").upper()
+        if direction == "BUY":
+            direction = "LONG"
+        if direction == "SELL":
+            direction = "SHORT"
+
+        # Positive funding → longs pay shorts; negative → shorts pay longs
+        pays_funding = (direction == "LONG" and rate > 0) or (direction == "SHORT" and rate < 0)
+        bleed = abs(float(rate)) >= threshold and pays_funding
+        hedge = None
+        if bleed:
+            hedge = {
+                "action": "micro_hedge_or_halt",
+                "hedge_side": "SHORT" if direction == "LONG" else "LONG",
+                "reason": "funding_bleed",
+            }
+        return {
+            "ok": not bleed,
+            "symbol": symbol,
+            "direction": direction,
+            "funding_rate": round(float(rate), 8),
+            "threshold": threshold,
+            "pays_funding": pays_funding,
+            "halt_entries": bleed,
+            "hedge": hedge,
+            "detail": "funding_ok" if not bleed else "funding_bleed_exceeds_0.05pct",
+        }
+
 
 # Shared singleton for live basket correlation across bot cycles
 portfolio_risk_guard = RiskManager()
+portfolio_risk_guard._funding_cache = {}  # type: ignore[attr-defined]
+portfolio_risk_guard._funding_updated_at = 0.0  # type: ignore[attr-defined]

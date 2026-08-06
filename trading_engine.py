@@ -207,6 +207,7 @@ class TradingEngine:
         symbol: str,
         sentiment_score: float | None = None,
         equity: float | None = None,
+        mtf: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         if equity is not None:
             breaker = quantum_engine.update_circuit_breaker(equity)
@@ -277,15 +278,32 @@ class TradingEngine:
 
         funding_rate = self._funding_rate(symbol) if final in {"BUY", "SELL"} else 0.0
         depth_guard = self._depth_ok(symbol, mark) if final in {"BUY", "SELL"} else {"ok": True, "slippage_pct": 0.0}
+        # Legacy soft filters (extreme funding)
         if final == "BUY" and funding_rate >= 0.0008:
             final = "HOLD"
             conf = 0.0
         if final == "SELL" and funding_rate <= -0.0008:
             final = "HOLD"
             conf = 0.0
+        # Hard 0.05% funding bleed guard
+        if final in {"BUY", "SELL"}:
+            from risk_manager import portfolio_risk_guard
+
+            bleed = portfolio_risk_guard.funding_bleed_guard(symbol, final, funding_rate)
+            if not bleed.get("ok"):
+                final = "HOLD"
+                conf = 0.0
+        else:
+            bleed = {"ok": True, "detail": "n/a"}
         if final in {"BUY", "SELL"} and not depth_guard["ok"]:
             final = "HOLD"
             conf = 0.0
+
+        # Multi-timeframe confluence gate (filters wick / false breakouts)
+        mtf_info = mtf or {"ok": True, "aligned": True, "detail": "mtf_not_provided"}
+        if final in {"BUY", "SELL"} and mtf_info.get("ok") is False:
+            final = "HOLD"
+            conf = min(conf, 18.0)
 
         if not quantum_engine.trading_allowed():
             final = "HOLD"
@@ -351,6 +369,8 @@ class TradingEngine:
             "liquidation": quantum_engine.liquidation_heatmap(symbol),
             "vpin": quantum_engine.toxicity_label(symbol),
             "funding_rate": round(funding_rate, 6),
+            "funding_guard": bleed,
+            "mtf": mtf_info,
             "depth_guard": depth_guard,
             "ai_council": council,
             "ai_reasoning": self._build_reasoning(

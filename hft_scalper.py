@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 
 import config
+from micro_exec_pool import micro_exec_pool
 
 logger = logging.getLogger("beast.hft")
 
@@ -137,14 +138,28 @@ class HFTScalper:
         prev_price = float(prev.get("price") or 0)
         if prev_price <= 0:
             return None
-        move = (price - prev_price) / prev_price
         vol_ema = self._volume_ema.get(symbol, volume or 0)
-        spike = bool(volume and vol_ema and volume >= vol_ema * SPIKE_VOLUME_MULT)
+        burst_info = micro_exec_pool.analyze_tick_inline(
+            prev_price,
+            price,
+            float(volume or 0.0),
+            float(vol_ema or 0.0),
+        )
+        move = float(burst_info.get("move") or 0.0)
+        spike = bool(burst_info.get("spike"))
 
         # Burst detector: sharp move + volume spike
         if abs(move) < 0.0008 and not spike:
             return None
         if abs(move) < 0.0004:
+            return None
+
+        # Optional book imbalance gate from process-pool cache (non-blocking)
+        book = micro_exec_pool.book_snapshot(symbol)
+        imb = float(book.get("imbalance") or 0.0)
+        if move > 0 and imb < -0.35:
+            return None
+        if move < 0 and imb > 0.35:
             return None
 
         side = "LONG" if move > 0 else "SHORT"
@@ -315,10 +330,13 @@ class HFTScalper:
                     "sl_pct": SCALP_SL * 100,
                     "max_hold_s": MAX_HOLD_SECONDS,
                 },
+                "micro_exec": micro_exec_pool.stats(),
+                "latency_budget_ms": float(getattr(config, "MAX_ORDER_LATENCY_MS", 15)),
             }
 
     def shutdown(self) -> None:
         self._pool.shutdown(wait=False, cancel_futures=True)
+        micro_exec_pool.shutdown()
 
 
 hft_scalper = HFTScalper()

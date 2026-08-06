@@ -65,17 +65,66 @@ def evaluate_universe(
     sentiment_score: float | None = None,
 ) -> list[dict[str, Any]]:
     """Fetch enriched OHLCV and produce signal + risk packages per pair."""
+    from scanner import compute_mtf_confluence
+
     results: list[dict[str, Any]] = []
+    # Prefetch funding once per cycle for bleed guard
+    try:
+        from risk_manager import portfolio_risk_guard
+
+        portfolio_risk_guard.refresh_funding_rates(pairs)
+    except Exception:  # noqa: BLE001
+        pass
+
     for symbol in pairs:
         df = market.get_market_snapshot(symbol, timeframe=timeframe)
         if df.empty:
             continue
+        mtf_payload: dict[str, Any] = {"ok": True, "aligned": True, "detail": "deferred"}
+        df_1m = df_5m = df_15m = None
+        # Lightweight MTF frames for confluence (only when primary bar set is healthy)
+        try:
+            df_1m = market.get_market_snapshot(symbol, timeframe="1m", limit=80)
+            df_5m = market.get_market_snapshot(symbol, timeframe="5m", limit=80)
+            df_15m = market.get_market_snapshot(symbol, timeframe="15m", limit=80)
+            pre = trading_engine.signals.generate(df, symbol=symbol, sentiment_score=sentiment_score)
+            mtf_payload = compute_mtf_confluence(
+                df_1m,
+                df_5m,
+                df_15m,
+                signal=str(pre.get("signal") or "HOLD"),
+            )
+        except Exception as exc:  # noqa: BLE001
+            mtf_payload = {"ok": True, "aligned": True, "detail": f"mtf_skip:{exc}"}
+
         signal = trading_engine.evaluate(
             df,
             symbol=symbol,
             sentiment_score=sentiment_score,
             equity=risk_mgr.account_balance,
+            mtf=mtf_payload,
         )
+        # Re-score MTF against final signal for accurate gate metadata
+        if (
+            signal.get("signal") in {"BUY", "SELL"}
+            and df_1m is not None
+            and df_5m is not None
+            and df_15m is not None
+        ):
+            try:
+                mtf_payload = compute_mtf_confluence(
+                    df_1m,
+                    df_5m,
+                    df_15m,
+                    signal=str(signal.get("signal")),
+                )
+                signal["mtf"] = mtf_payload
+                if not mtf_payload.get("ok"):
+                    signal["signal"] = "HOLD"
+                    signal["confidence_score"] = min(float(signal.get("confidence_score") or 0), 18.0)
+                    signal["blocked_by"] = "mtf_confluence"
+            except Exception:  # noqa: BLE001
+                pass
         risk = risk_mgr.evaluate_trade(signal)
         results.append({**signal, **risk, "candles": len(df)})
     return results
@@ -136,8 +185,33 @@ def maybe_execute(
     except Exception:  # noqa: BLE001
         basket = None
 
+    # Funding bleed guard (0.05% cycle)
     try:
-        order = execution.place_order(
+        from risk_manager import portfolio_risk_guard
+
+        funding_guard = portfolio_risk_guard.funding_bleed_guard(
+            symbol,
+            direction,
+            float(scan_row.get("funding_rate") or 0.0) or None,
+        )
+        if not funding_guard.get("ok"):
+            return {
+                "message": (
+                    f"SKIP {symbol}: funding bleed guard "
+                    f"(rate={funding_guard.get('funding_rate')})"
+                ),
+                "order": None,
+                "signal": signal,
+                "funding_guard": funding_guard,
+            }
+    except Exception:  # noqa: BLE001
+        funding_guard = None
+
+    try:
+        from execution_router import execution_router
+
+        order = execution_router.place(
+            execution,
             symbol=symbol,
             signal=signal,
             size_units=float(scan_row["position_size_units"]),
@@ -149,6 +223,7 @@ def maybe_execute(
                 "ai_reasoning": str(scan_row.get("ai_reasoning") or ""),
                 "atr_pct_frac": scan_row.get("atr_pct_frac"),
                 "atr_pct": scan_row.get("atr_pct"),
+                "mtf": scan_row.get("mtf") or {},
             },
         )
         result = {
@@ -162,6 +237,8 @@ def maybe_execute(
         }
         if basket:
             result["basket_guard"] = basket
+        if funding_guard:
+            result["funding_guard"] = funding_guard
         return result
     except Exception as exc:  # noqa: BLE001 - surface to dashboard
         return {"message": f"ERROR {symbol}: {exc}", "order": None, "signal": signal}

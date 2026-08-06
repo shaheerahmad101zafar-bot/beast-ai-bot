@@ -54,6 +54,12 @@ MAX_SLIPPAGE_PCT: Final[float] = 0.0008  # 0.08% dynamic ceiling (volatile pairs
 MAX_CORRELATED_ALT_POSITIONS: Final[int] = 3
 CORRELATION_THRESHOLD: Final[float] = 0.70
 CORRELATION_LOOKBACK: Final[int] = 48
+# Funding bleed guard — halt/hedge when |funding| exceeds 0.05% per 8h cycle
+FUNDING_BLEED_THRESHOLD: Final[float] = float(os.getenv("FUNDING_BLEED_THRESHOLD", "0.0005"))
+TWAP_NOTIONAL_THRESHOLD_USD: Final[float] = float(os.getenv("TWAP_NOTIONAL_THRESHOLD_USD", "250"))
+ICEBERG_MAX_SLICES: Final[int] = int(os.getenv("ICEBERG_MAX_SLICES", "8"))
+MAX_ORDER_LATENCY_MS: Final[float] = float(os.getenv("MAX_ORDER_LATENCY_MS", "15"))
+MICRO_EXEC_WORKERS: Final[int] = int(os.getenv("MICRO_EXEC_WORKERS", "2"))
 # 1-minute ATR spike → hard max leverage caps
 VOL_LEV_CAP_SOFT_ATR: Final[float] = 0.012  # 1.2% → max 8x
 VOL_LEV_CAP_HARD_ATR: Final[float] = 0.020  # 2.0% → max 5x

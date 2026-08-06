@@ -563,6 +563,23 @@ class WebSocketHub:
                 }
                 ring_buffer.record_tick(self.ticks[symbol])
                 self._apply_mark(symbol, float(mid))
+                # Offload heavy book math to ProcessPool (non-blocking)
+                try:
+                    from micro_exec_pool import micro_exec_pool
+
+                    bid = float(payload.get("bid") or 0)
+                    ask = float(payload.get("ask") or 0)
+                    bq = float(payload.get("bid_qty") or 0)
+                    aq = float(payload.get("ask_qty") or 0)
+                    if bid > 0 and ask > 0:
+                        micro_exec_pool.submit_book(
+                            symbol,
+                            [[bid, bq]],
+                            [[ask, aq]],
+                            float(mid),
+                        )
+                except Exception:  # noqa: BLE001
+                    pass
                 try:
                     from hft_scalper import hft_scalper
 

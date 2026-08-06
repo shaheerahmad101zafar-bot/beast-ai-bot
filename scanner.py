@@ -187,3 +187,98 @@ def fetch_all_usdt_futures_pairs(limit: int = 250) -> list[dict[str, Any]]:
         if seed["symbol"].upper() not in have:
             rows.append(seed)
     return rows[: max(1, limit)]
+
+
+def _ema(series: list[float], window: int) -> float:
+    if not series:
+        return 0.0
+    alpha = 2.0 / (window + 1.0)
+    val = float(series[0])
+    for x in series[1:]:
+        val = alpha * float(x) + (1.0 - alpha) * val
+    return val
+
+
+def compute_mtf_confluence(
+    df_1m: Any,
+    df_5m: Any,
+    df_15m: Any,
+    *,
+    signal: str = "HOLD",
+) -> dict[str, Any]:
+    """
+    Multi-timeframe confluence:
+      - 1m order-flow imbalance (volume-signed proxy)
+      - 5m volatility profile (ATR% / range compression)
+      - 15m MA trend alignment (EMA20 vs EMA50)
+    Rejects wick/false-breakout scalp entries when frames disagree.
+    """
+    try:
+        import pandas as pd
+    except Exception:  # noqa: BLE001
+        return {"ok": False, "aligned": False, "detail": "pandas unavailable"}
+
+    def _frame_ok(df: Any) -> bool:
+        return isinstance(df, pd.DataFrame) and not df.empty and len(df) >= 25
+
+    if not (_frame_ok(df_1m) and _frame_ok(df_5m) and _frame_ok(df_15m)):
+        return {"ok": False, "aligned": False, "detail": "insufficient_mtf_bars"}
+
+    # --- 1m order-flow imbalance ---
+    c1 = df_1m["close"].astype(float)
+    v1 = df_1m["volume"].astype(float) if "volume" in df_1m.columns else c1 * 0 + 1.0
+    signed = ((c1.diff().fillna(0.0) > 0).astype(float) * 2 - 1.0) * v1
+    buy_vol = float(signed.clip(lower=0).tail(20).sum())
+    sell_vol = float((-signed.clip(upper=0)).tail(20).sum())
+    flow_den = buy_vol + sell_vol + 1e-12
+    flow_imbalance = (buy_vol - sell_vol) / flow_den
+
+    # --- 5m volatility profile ---
+    c5 = df_5m["close"].astype(float)
+    h5 = df_5m["high"].astype(float)
+    l5 = df_5m["low"].astype(float)
+    atr5 = float(((h5 - l5).tail(14)).mean())
+    atr5_pct = atr5 / max(float(c5.iloc[-1]), 1e-12)
+    range_now = float(h5.iloc[-1] - l5.iloc[-1]) / max(float(c5.iloc[-1]), 1e-12)
+    vol_expanding = range_now >= atr5_pct * 0.85
+
+    # --- 15m MA trend ---
+    c15 = [float(x) for x in df_15m["close"].astype(float).tolist()]
+    ema20 = _ema(c15[-60:], 20)
+    ema50 = _ema(c15[-80:], 50)
+    trend = "UP" if ema20 > ema50 else ("DOWN" if ema20 < ema50 else "FLAT")
+    trend_slope = (ema20 - ema50) / max(abs(ema50), 1e-12)
+
+    sig = str(signal or "HOLD").upper()
+    flow_ok = True
+    trend_ok = True
+    vol_ok = atr5_pct < 0.045  # reject chaotic 5m expansion spikes as wick traps
+    if sig == "BUY":
+        flow_ok = flow_imbalance >= -0.05
+        trend_ok = trend in {"UP", "FLAT"} and trend_slope > -0.002
+    elif sig == "SELL":
+        flow_ok = flow_imbalance <= 0.05
+        trend_ok = trend in {"DOWN", "FLAT"} and trend_slope < 0.002
+
+    strong = False
+    if sig == "BUY":
+        strong = flow_imbalance >= 0.12 and trend == "UP" and vol_expanding and vol_ok
+    elif sig == "SELL":
+        strong = flow_imbalance <= -0.12 and trend == "DOWN" and vol_expanding and vol_ok
+
+    aligned = bool(flow_ok and trend_ok and vol_ok and sig in {"BUY", "SELL"})
+    ok = aligned if sig in {"BUY", "SELL"} else True
+
+    return {
+        "ok": ok,
+        "aligned": aligned,
+        "strong": strong,
+        "flow_imbalance": round(flow_imbalance, 4),
+        "atr5_pct": round(atr5_pct * 100.0, 4),
+        "vol_expanding": bool(vol_expanding),
+        "trend_15m": trend,
+        "trend_slope": round(trend_slope, 6),
+        "ema20_15m": round(ema20, 8),
+        "ema50_15m": round(ema50, 8),
+        "detail": "pass" if ok else "mtf_divergence_or_wick_risk",
+    }

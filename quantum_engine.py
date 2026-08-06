@@ -267,6 +267,16 @@ class QuantumEngine:
 
     def snapshot(self, symbol: str = "BTC/USDT") -> dict[str, Any]:
         tox = self.toxicity_label(symbol)
+        micro = {}
+        try:
+            from micro_exec_pool import micro_exec_pool
+
+            micro = {
+                "book": micro_exec_pool.book_snapshot(symbol),
+                "pool": micro_exec_pool.stats(),
+            }
+        except Exception:  # noqa: BLE001
+            micro = {}
         return {
             "vpin": tox,
             "regime": self._last_regime,
@@ -281,6 +291,7 @@ class QuantumEngine:
                 tox["label"],
                 "NEUTRAL",
             )),
+            "micro_exec": micro,
             "ts": _utc_iso(),
         }
 
