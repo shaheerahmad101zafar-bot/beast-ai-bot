@@ -20,6 +20,7 @@ from typing import Any
 from dotenv import load_dotenv
 
 import config
+from execution_slicer import execution_slicer
 from execution_ws import execution_ws
 from notifications import notifications
 from trade_logger import TradeLogger
@@ -99,6 +100,11 @@ class ExecutionEngine:
             raise ValueError(f"Unsupported signal for execution: {signal}")
         if size_units <= 0 or market_price <= 0:
             raise ValueError("size_units and market_price must be positive")
+        metadata = execution_slicer.enrich_metadata(
+            metadata,
+            size_units=size_units,
+            market_price=market_price,
+        )
 
         direction = "LONG" if signal == "BUY" else "SHORT"
 
@@ -266,6 +272,7 @@ class ExecutionEngine:
             "unrealized_pnl": 0.0,
             "opened_at": _utc_now(),
             "ai_reasoning": str((metadata or {}).get("ai_reasoning") or ""),
+            "slice_plan": dict((metadata or {}).get("slice_plan") or {}),
         }
         self.positions[symbol] = position
         self._save_portfolio()
@@ -380,6 +387,7 @@ class ExecutionEngine:
             "unrealized_pnl": 0.0,
             "opened_at": _utc_now(),
             "ai_reasoning": str((kwargs.get("metadata") or {}).get("ai_reasoning") or ""),
+            "slice_plan": dict((kwargs.get("metadata") or {}).get("slice_plan") or {}),
             "execution_pipe": response,
         }
         self.positions[symbol] = position

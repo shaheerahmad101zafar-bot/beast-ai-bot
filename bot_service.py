@@ -17,6 +17,7 @@ from liquidation_hunter import liquidation_hunter
 from main import evaluate_universe, maybe_execute
 from macro_guard import macro_guard
 from market_data import MarketDataEngine
+from quant_metrics import quant_metrics
 from risk_manager import DEFAULT_ACCOUNT_BALANCE, RiskManager
 from hft_scalper import hft_scalper
 from copy_trader import copy_trader
@@ -434,6 +435,7 @@ class TradingBotService:
                 "daily_realized_pnl": daily_pnl,
                 "win_rate": win_rate,
                 "closed_trades": len(history),
+                "quant_metrics": quant_metrics.compute(history),
                 "server_time": _utc_now(),
             }
 

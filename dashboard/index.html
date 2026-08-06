@@ -145,6 +145,24 @@
       </article>
     </section>
 
+    <section class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <article class="glass-panel p-4">
+        <div class="mini-label">Live Sharpe Ratio</div>
+        <div id="qm-sharpe" class="mini-value mt-2">—</div>
+        <p class="metric-tip">Risk-adjusted return quality across realized trade history.</p>
+      </article>
+      <article class="glass-panel p-4">
+        <div class="mini-label">Live Sortino Ratio</div>
+        <div id="qm-sortino" class="mini-value mt-2">—</div>
+        <p class="metric-tip">Focuses only on downside volatility, not harmless upside swings.</p>
+      </article>
+      <article class="glass-panel p-4">
+        <div class="mini-label">24h Value-at-Risk</div>
+        <div id="qm-var" class="mini-value mt-2">—</div>
+        <p class="metric-tip">Estimated worst recent realized loss at the 95% confidence tail.</p>
+      </article>
+    </section>
+
     <section class="panel mb-6" id="live-chart-panel">
       <div class="panel-head">
         <h2 class="panel-title">Live Chart</h2>

@@ -51,6 +51,7 @@ from oauth_auth import (
 )
 from admin_settings import admin_settings
 from arbitrage_scanner import arbitrage_scanner
+from auth_validator import auth_validator
 from backup_engine import backup_engine
 from backtest import backtester
 from billing import billing
@@ -62,7 +63,9 @@ from hedging_engine import hedging_engine
 from liquidation_hunter import liquidation_hunter
 from macro_guard import macro_guard
 from news_fetcher import news_fetcher
+from quant_metrics import quant_metrics
 from quantum_engine import quantum_engine
+from system_health import system_health
 from bot_service import bot_service
 from cms_engine import cms_engine
 from copy_trader import copy_trader
@@ -176,6 +179,7 @@ async def lifespan(app: FastAPI):
     await genetic_tuner.start()
     await liquidation_hunter.start()
     await backup_engine.start()
+    await system_health.start(bot_service.execution.save)
     # Upgrade seeded top-50 pairs to live Binance volume ranking in background.
     try:
         await asyncio.to_thread(market_scanner.refresh_live_universe)
@@ -190,6 +194,7 @@ async def lifespan(app: FastAPI):
     await arbitrage_scanner.stop()
     await liquidation_hunter.stop()
     await backup_engine.stop()
+    await system_health.stop()
     await ws_hub.stop()
     bot_service.shutdown()
     market_scanner.close()
@@ -765,7 +770,9 @@ async def api_status() -> dict[str, Any]:
 
 @app.get("/api/portfolio")
 async def api_portfolio(user: User = Depends(get_current_user)) -> dict[str, Any]:
-    return {"user_id": user.id, **bot_service.get_portfolio()}
+    portfolio = bot_service.get_portfolio()
+    metrics = quant_metrics.compute(bot_service.get_trade_history(limit=500).get("trades") or [])
+    return {"user_id": user.id, **portfolio, "quant_metrics": metrics}
 
 
 @app.get("/api/trade-history")
@@ -871,6 +878,7 @@ async def api_quant_snapshot(
         "execution_ws": execution_ws.status(),
         "macro_guard": macro_guard.snapshot(),
         "liquidation_hunter": liquidation_hunter.snapshot(),
+        "system_health": system_health.snapshot(),
     }
 
 
@@ -1019,6 +1027,7 @@ async def api_exchange_connect(
             paper_mode=body.paper_mode,
             equity_hint=body.equity_hint,
         )
+        await asyncio.to_thread(auth_validator.audit, validation)
     except (ValueError, PermissionError, ConnectionError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

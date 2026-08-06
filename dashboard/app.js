@@ -142,6 +142,9 @@
     copilotInput: document.getElementById("copilot-input"),
     copilotPreview: document.getElementById("copilot-preview"),
     btnCopilotRun: document.getElementById("btn-copilot-run"),
+    qmSharpe: document.getElementById("qm-sharpe"),
+    qmSortino: document.getElementById("qm-sortino"),
+    qmVar: document.getElementById("qm-var"),
   };
 
   if (parseWorker) {
@@ -837,6 +840,7 @@
       const hft = data.hft || {};
       const macro = data.macro_guard || {};
       const liqHunter = data.liquidation_hunter || {};
+      const health = data.system_health || {};
       const elV = document.getElementById("q-vpin");
       const elR = document.getElementById("q-regime");
       const elB = document.getElementById("q-breaker");
@@ -861,7 +865,8 @@
         const liqLabel = liqHunter.last_cluster?.symbol
           ? `Liq ${liqHunter.last_cluster.symbol}`
           : "No liq cluster";
-        els.qFeed.textContent = `${macroLabel} · ${liqLabel} · ${latency}`;
+        const mem = Number.isFinite(Number(health.rss_mb)) ? `RAM ${fmt(health.rss_mb, 0)}MB` : "RAM —";
+        els.qFeed.textContent = `${macroLabel} · ${liqLabel} · ${mem} · ${latency}`;
       }
       hftEnabled = !!hft.enabled;
       const btn = document.getElementById("btn-hft-toggle");
@@ -884,6 +889,10 @@
     els.realized.textContent = `All-time ${money(portfolio.realized_pnl)}`;
     els.winrate.textContent = `${fmt(portfolio.win_rate, 1)}%`;
     els.closed.textContent = `${portfolio.closed_trades || 0} closed trades`;
+    const qm = portfolio.quant_metrics || {};
+    if (els.qmSharpe) els.qmSharpe.textContent = fmt(qm.sharpe_ratio, 3);
+    if (els.qmSortino) els.qmSortino.textContent = fmt(qm.sortino_ratio, 3);
+    if (els.qmVar) els.qmVar.textContent = money(qm.var_24h_usd);
   }
 
   function gaugeColor(score) {
