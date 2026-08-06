@@ -62,6 +62,7 @@ from genetic_tuner import genetic_tuner
 from hedging_engine import hedging_engine
 from liquidation_hunter import liquidation_hunter
 from macro_guard import macro_guard
+from multi_exchange_router import multi_exchange_router
 from news_fetcher import news_fetcher
 from quant_metrics import quant_metrics
 from quantum_engine import quantum_engine
@@ -876,6 +877,7 @@ async def api_quant_snapshot(
         "arbitrage": arbitrage_scanner.snapshot(),
         "genetic_tuner": genetic_tuner.snapshot(),
         "execution_ws": execution_ws.status(),
+        "multi_exchange_router": multi_exchange_router.status(),
         "macro_guard": macro_guard.snapshot(),
         "liquidation_hunter": liquidation_hunter.snapshot(),
         "system_health": system_health.snapshot(),

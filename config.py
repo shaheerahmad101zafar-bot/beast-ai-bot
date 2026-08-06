@@ -53,6 +53,8 @@ BINANCE_FUTURES_TRADE_WS: Final[str] = os.getenv(
     "BINANCE_FUTURES_TRADE_WS",
     "wss://ws-fapi.binance.com/ws-fapi/v1",
 )
+REGION_NODES: Final[list[str]] = [r.strip() for r in os.getenv("REGION_NODES", "ap,eu,us").split(",") if r.strip()]
+BEST_REGION_NODE: Final[str] = os.getenv("BEST_REGION_NODE", REGION_NODES[0] if REGION_NODES else "ap")
 PAPER_PORTFOLIO_PATH: Final[str] = "paper_portfolio.json"
 TRADE_HISTORY_CSV: Final[str] = "trade_history.csv"
 TRADE_HISTORY_JSON: Final[str] = "trade_history.json"

@@ -22,7 +22,9 @@ from dotenv import load_dotenv
 import config
 from execution_slicer import execution_slicer
 from execution_ws import execution_ws
+from multi_exchange_router import multi_exchange_router
 from notifications import notifications
+from slippage_guard import slippage_guard
 from trade_logger import TradeLogger
 
 
@@ -363,7 +365,7 @@ class ExecutionEngine:
         market_price = float(kwargs["market_price"])
         leverage = float(kwargs["leverage"])
         response = self._run_coro(
-            self._execution_ws.place_order(
+            multi_exchange_router.place_order(
                 symbol=symbol,
                 side="BUY" if direction == "LONG" else "SELL",
                 quantity=size_units,
@@ -396,13 +398,21 @@ class ExecutionEngine:
     def _live_close(self, symbol: str, market_price: float, exit_reason: str) -> dict[str, Any]:
         pos = self.positions[symbol]
         response = self._run_coro(
-            self._execution_ws.place_order(
+            multi_exchange_router.place_order(
                 symbol=symbol,
                 side="SELL" if pos["direction"] == "LONG" else "BUY",
                 quantity=float(pos["size"]),
                 reduce_only=True,
             )
         )
+        guard = None
+        if "sl" in str(exit_reason).lower():
+            guard = slippage_guard.build_iceberg(
+                symbol=symbol,
+                direction=str(pos["direction"]),
+                size=float(pos["size"]),
+                mark_price=market_price,
+            )
         trade = {
             "timestamp": _utc_now(),
             "trade_id": pos.get("trade_id"),
@@ -418,6 +428,7 @@ class ExecutionEngine:
             "gross_pnl": round(self._unrealized_pnl(pos, market_price), 4),
             "ai_reasoning": str(pos.get("ai_reasoning") or ""),
             "execution_pipe": response,
+            "slippage_guard": guard,
         }
         del self.positions[symbol]
         self.trade_logger.log_trade(trade)

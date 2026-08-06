@@ -17,6 +17,7 @@ from liquidation_hunter import liquidation_hunter
 from main import evaluate_universe, maybe_execute
 from macro_guard import macro_guard
 from market_data import MarketDataEngine
+from multi_exchange_router import multi_exchange_router
 from quant_metrics import quant_metrics
 from risk_manager import DEFAULT_ACCOUNT_BALANCE, RiskManager
 from hft_scalper import hft_scalper
@@ -407,6 +408,7 @@ class TradingBotService:
                 "sentiment_label": sentiment.get("label"),
                 "events": list(self._latest_events),
                 "hedge": hedging_engine.snapshot(),
+                "multi_exchange_router": multi_exchange_router.status(),
                 "macro_guard": macro_guard.snapshot(),
                 "liquidation_hunter": liquidation_hunter.snapshot(),
                 "error": self._last_error,

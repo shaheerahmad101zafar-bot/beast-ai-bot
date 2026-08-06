@@ -16,6 +16,7 @@ import requests
 from ai_council import ai_council
 import config
 from quantum_engine import quantum_engine
+from regime_classifier import regime_classifier
 from strategy import SignalGenerator
 
 
@@ -196,6 +197,9 @@ class TradingEngine:
 
         base = self.signals.generate(df, symbol=symbol, sentiment_score=sentiment_score)
         regime = quantum_engine.classify_regime(df)
+        regime_rotation = regime_classifier.classify(df)
+        if regime_rotation.get("params"):
+            self.set_runtime_params(regime_rotation["params"])
         mark = float(df["close"].iloc[-1])
         quantum_engine._price_hist[symbol].append(mark)
         quantum_engine.update_liquidation_heatmap(symbol, mark)
@@ -293,6 +297,7 @@ class TradingEngine:
             },
             "anti_wick": wick,
             "regime": regime,
+            "regime_rotation": regime_rotation,
             "rl_policy": policy,
             "liquidation": quantum_engine.liquidation_heatmap(symbol),
             "vpin": quantum_engine.toxicity_label(symbol),
