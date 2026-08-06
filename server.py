@@ -53,7 +53,7 @@ from admin_settings import admin_settings
 from arbitrage_scanner import arbitrage_scanner
 from auth_validator import auth_validator
 from backup_engine import backup_engine
-from backtest_engine import backtester
+from backtest import backtester
 from billing import billing
 from diagnostic_engine import diagnostic_engine
 from hft_scalper import hft_scalper

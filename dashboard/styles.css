@@ -200,10 +200,10 @@ canvas {
 .stat-card,
 .panel {
   background: rgba(14, 26, 36, 0.88);
-  border: 1px solid var(--line);
+  border: 1px solid rgba(31, 41, 55, 0.92);
   border-radius: 1rem;
   backdrop-filter: blur(10px);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.28);
 }
 
 .stat-card {
@@ -234,6 +234,15 @@ canvas {
   line-height: 1.1;
   color: #fff;
   word-break: break-word;
+}
+
+.metric-num,
+.mini-value.metric-num,
+.stat-value.metric-num,
+.data-table .metric-num {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 
 .stat-sub {
@@ -337,16 +346,42 @@ body[data-ui-mode="simple"] #tab-billing {
   font-size: 0.7rem;
   color: var(--mist);
   max-width: 100%;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .table-scroll {
   width: 100%;
   overflow-x: auto;
+  overflow-y: auto;
+  max-height: min(28rem, 70vh);
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
   margin: 0 -0.15rem;
   padding-bottom: 0.35rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(71, 85, 105, 0.9) transparent;
+}
+
+.table-scroll::-webkit-scrollbar,
+.news-feed::-webkit-scrollbar,
+.headline-list::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.table-scroll::-webkit-scrollbar-thumb,
+.news-feed::-webkit-scrollbar-thumb,
+.headline-list::-webkit-scrollbar-thumb {
+  background: rgba(71, 85, 105, 0.8);
+  border-radius: 999px;
+}
+
+.table-scroll::-webkit-scrollbar-track,
+.news-feed::-webkit-scrollbar-track,
+.headline-list::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .panel-with-pwa-pad {
@@ -358,6 +393,7 @@ body[data-ui-mode="simple"] #tab-billing {
   border-collapse: collapse;
   font-size: 0.8rem;
   min-width: 520px;
+  table-layout: fixed;
 }
 
 .data-table th {
@@ -376,6 +412,46 @@ body[data-ui-mode="simple"] #tab-billing {
   border-bottom: 1px solid rgba(30, 51, 68, 0.7);
   white-space: nowrap;
   color: #e6eef4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.data-table th,
+.data-table td {
+  min-width: 0;
+}
+
+.truncate-cell {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge {
+  border: 1px solid rgba(31, 41, 55, 0.9);
+}
+
+.skeleton-row td {
+  padding: 0.85rem 0.5rem;
+}
+
+.skeleton-line {
+  display: block;
+  width: 100%;
+  height: 0.8rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(30, 41, 59, 0.9) 25%, rgba(51, 65, 85, 0.95) 50%, rgba(30, 41, 59, 0.9) 75%);
+  background-size: 220% 100%;
+  animation: skeleton-shimmer 1.5s linear infinite;
+}
+
+.skeleton-line.short { width: 56%; }
+.skeleton-line.mid { width: 74%; }
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 .data-table tr:last-child td {
@@ -508,6 +584,14 @@ body[data-ui-mode="simple"] #tab-billing {
 
 .tabs::-webkit-scrollbar {
   display: none;
+}
+
+.news-feed,
+.headline-list {
+  max-height: min(24rem, 65vh);
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(71, 85, 105, 0.9) transparent;
 }
 
 .tab-btn {

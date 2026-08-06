@@ -1,8 +1,11 @@
 """
-Compatibility models module + AES-256 helpers.
+Compatibility models module + AES-256-GCM helpers.
 
 Keeps legacy imports working while exposing shared SQLAlchemy models and
-API-key encryption helpers for SQLite/Postgres/Supabase deployments.
+API-key encryption helpers for SQLite / PostgreSQL / Supabase deployments.
+
+Secrets are encrypted at rest with AES-256-GCM (`encrypt_api_secret`) and
+only decrypted in-memory for exchange routing / validation.
 """
 
 from __future__ import annotations

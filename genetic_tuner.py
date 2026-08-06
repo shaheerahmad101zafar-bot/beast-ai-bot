@@ -11,7 +11,7 @@ import random
 from datetime import datetime, timezone
 from typing import Any
 
-from backtest_engine import backtester
+from backtest import backtester
 from trading_engine import trading_engine
 
 

@@ -234,7 +234,12 @@ def get_current_user(
 
 
 def ensure_same_user(requested_user_id: int | None, user: User) -> None:
-    """Reject cross-user access on wallet/trade style endpoints."""
+    """
+    Enforce strict User ID isolation on wallet/trade endpoints.
+
+    Callers must pass the authenticated user from JWT; any explicit
+    `user_id` query that does not match that identity is rejected.
+    """
     if requested_user_id is None:
         return
     if int(requested_user_id) != int(user.id):

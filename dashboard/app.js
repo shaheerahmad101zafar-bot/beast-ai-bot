@@ -717,10 +717,10 @@
       .map(
         (m) => `
       <tr class="fade-in scanner-row" data-symbol="${m.symbol}" title="Open ${m.symbol} chart">
-        <td data-label="Pair" class="font-semibold text-white">${m.symbol}</td>
-        <td data-label="Price">${fmt(m.price || m.entry_price, (m.price || m.entry_price) >= 100 ? 2 : 4)}</td>
+        <td data-label="Pair" title="${m.symbol}"><span class="truncate-cell font-semibold text-white">${m.symbol}</span></td>
+        <td data-label="Price"><span class="metric-num">${fmt(m.price || m.entry_price, (m.price || m.entry_price) >= 100 ? 2 : 4)}</span></td>
         <td data-label="AI Signal">${signalBadge(m.signal)}</td>
-        <td data-label="Confidence">${fmt(m.confidence ?? m.confidence_score, 1)}%</td>
+        <td data-label="Confidence"><span class="metric-num">${fmt(m.confidence ?? m.confidence_score, 1)}%</span></td>
       </tr>`
       )
       .join("");
@@ -738,13 +738,13 @@
         const upnl = Number(p.unrealized_pnl || 0);
         return `
       <tr class="fade-in">
-        <td data-label="Symbol" class="font-semibold text-white">${p.symbol}</td>
+        <td data-label="Symbol" title="${p.symbol}"><span class="truncate-cell font-semibold text-white">${p.symbol}</span></td>
         <td data-label="Side">${sideBadge(p.direction)}</td>
-        <td data-label="Entry">${fmt(p.entry_price)}</td>
-        <td data-label="Mark">${fmt(p.mark_price)}</td>
-        <td data-label="SL">${fmt(p.stop_loss)}</td>
-        <td data-label="TP">${fmt(p.take_profit)}</td>
-        <td data-label="Live PnL" class="${pnlClass(upnl)}">${money(upnl)}${renderReasonAccordion(
+        <td data-label="Entry"><span class="metric-num">${fmt(p.entry_price)}</span></td>
+        <td data-label="Mark"><span class="metric-num">${fmt(p.mark_price)}</span></td>
+        <td data-label="SL"><span class="metric-num">${fmt(p.stop_loss)}</span></td>
+        <td data-label="TP"><span class="metric-num">${fmt(p.take_profit)}</span></td>
+        <td data-label="Live PnL" class="${pnlClass(upnl)}"><span class="metric-num">${money(upnl)}</span>${renderReasonAccordion(
           p.ai_reasoning
         )}</td>
       </tr>`;
@@ -771,14 +771,14 @@
               : `<span class="pnl-badge">FLAT</span>`;
         return `
       <tr class="fade-in">
-        <td data-label="Time">${t.timestamp || "—"}</td>
-        <td data-label="Pair">${t.pair || "—"}</td>
+        <td data-label="Time" title="${t.timestamp || "—"}"><span class="truncate-cell">${t.timestamp || "—"}</span></td>
+        <td data-label="Pair" title="${t.pair || "—"}"><span class="truncate-cell">${t.pair || "—"}</span></td>
         <td data-label="Side">${sideBadge(t.direction)}</td>
-        <td data-label="Entry">${fmt(t.entry_price)}</td>
-        <td data-label="Exit">${fmt(t.exit_price)}</td>
-        <td data-label="PnL" class="${pnlClass(pnl)}">${money(pnl)}</td>
+        <td data-label="Entry"><span class="metric-num">${fmt(t.entry_price)}</span></td>
+        <td data-label="Exit"><span class="metric-num">${fmt(t.exit_price)}</span></td>
+        <td data-label="PnL" class="${pnlClass(pnl)}"><span class="metric-num">${money(pnl)}</span></td>
         <td data-label="Badge">${badge}</td>
-        <td data-label="Reason">${t.exit_reason || "—"}${renderReasonAccordion(t.ai_reasoning)}</td>
+        <td data-label="Reason" title="${t.exit_reason || "—"}"><span class="truncate-cell">${t.exit_reason || "—"}</span>${renderReasonAccordion(t.ai_reasoning)}</td>
       </tr>`;
       })
       .join("");
@@ -805,8 +805,8 @@
         return `<article class="news-item">
           <span class="news-badge ${badge}">${n.badge || "Neutral"}</span>
           <div class="min-w-0">
-            <a class="text-sm text-white hover:text-teal" href="${href}" target="_blank" rel="noopener">${title}</a>
-            <div class="text-[11px] text-mist mt-1">${n.source || "wire"} · ${n.published || ""}</div>
+            <a class="text-sm text-white hover:text-teal truncate-cell" title="${title}" href="${href}" target="_blank" rel="noopener">${title}</a>
+            <div class="text-[11px] text-mist mt-1 truncate-cell" title="${(n.source || "wire") + " · " + (n.published || "")}">${n.source || "wire"} · ${n.published || ""}</div>
           </div>
         </article>`;
       })
@@ -877,22 +877,22 @@
   }
 
   function renderStats(portfolio) {
-    els.equity.textContent = money(portfolio.equity);
-    els.wallet.textContent = `Wallet ${money(portfolio.wallet_balance)} · Avail ${money(
+    els.equity.innerHTML = `<span class="metric-num">${money(portfolio.equity)}</span>`;
+    els.wallet.innerHTML = `<span class="metric-num">Wallet ${money(portfolio.wallet_balance)} · Avail ${money(
       portfolio.available_balance
-    )}`;
-    els.active.textContent = String(
+    )}</span>`;
+    els.active.innerHTML = `<span class="metric-num">${String(
       portfolio.open_positions ?? (portfolio.positions || []).length
-    );
-    els.dailyPnl.textContent = money(portfolio.daily_realized_pnl);
+    )}</span>`;
+    els.dailyPnl.innerHTML = `<span class="metric-num">${money(portfolio.daily_realized_pnl)}</span>`;
     els.dailyPnl.className = `stat-value ${pnlClass(portfolio.daily_realized_pnl)}`;
-    els.realized.textContent = `All-time ${money(portfolio.realized_pnl)}`;
-    els.winrate.textContent = `${fmt(portfolio.win_rate, 1)}%`;
+    els.realized.innerHTML = `<span class="metric-num">All-time ${money(portfolio.realized_pnl)}</span>`;
+    els.winrate.innerHTML = `<span class="metric-num">${fmt(portfolio.win_rate, 1)}%</span>`;
     els.closed.textContent = `${portfolio.closed_trades || 0} closed trades`;
     const qm = portfolio.quant_metrics || {};
-    if (els.qmSharpe) els.qmSharpe.textContent = fmt(qm.sharpe_ratio, 3);
-    if (els.qmSortino) els.qmSortino.textContent = fmt(qm.sortino_ratio, 3);
-    if (els.qmVar) els.qmVar.textContent = money(qm.var_24h_usd);
+    if (els.qmSharpe) els.qmSharpe.innerHTML = `<span class="metric-num">${fmt(qm.sharpe_ratio, 3)}</span>`;
+    if (els.qmSortino) els.qmSortino.innerHTML = `<span class="metric-num">${fmt(qm.sortino_ratio, 3)}</span>`;
+    if (els.qmVar) els.qmVar.innerHTML = `<span class="metric-num">${money(qm.var_24h_usd)}</span>`;
   }
 
   function gaugeColor(score) {

@@ -189,8 +189,9 @@ DEFAULT_ADMIN_PASSWORD: Final[str] = "AdminPass123!"
 CMS_CONTENT_PATH: Final[str] = "content/cms_content.json"
 API_CIPHER_KEY_ENV: Final[str] = "API_CIPHER_KEY"
 BACKTEST_LOOKBACK_DAYS: Final[int] = int(os.getenv("BACKTEST_LOOKBACK_DAYS", "30"))
-BINANCE_HTTP_WEIGHT_LIMIT_PER_MIN: Final[int] = int(
-    os.getenv("BINANCE_HTTP_WEIGHT_LIMIT_PER_MIN", "1100")
+BINANCE_HTTP_WEIGHT_LIMIT_PER_MIN: Final[int] = min(
+    1200,
+    max(100, int(os.getenv("BINANCE_HTTP_WEIGHT_LIMIT_PER_MIN", "1100"))),
 )
 SOCKET_TCP_NODELAY: Final[bool] = os.getenv("SOCKET_TCP_NODELAY", "1") != "0"
 SOCKET_SO_REUSEPORT: Final[bool] = os.getenv("SOCKET_SO_REUSEPORT", "0") == "1"
