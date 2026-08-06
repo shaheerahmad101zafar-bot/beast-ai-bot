@@ -492,6 +492,7 @@
       renderPricing(pricing.tiers || []);
       calcRoi();
 
+      const proof = await fetchJson("/api/public-proof").catch(() => null);
       const winRate = Number(portfolio?.win_rate);
       const equity = Number(portfolio?.equity);
       const daily = Number(portfolio?.daily_realized_pnl);
@@ -510,6 +511,10 @@
       document.getElementById("perf-conf").textContent = `${(
         Number.isFinite(confAvg) && confAvg > 0 ? confAvg : 76
       ).toFixed(0)}%`;
+      if (proof) {
+        document.getElementById("perf-proof-equity").textContent = money(proof.equity);
+        document.getElementById("perf-proof-meta").textContent = `${Number(proof.win_rate || 0).toFixed(1)}% win rate · ${proof.closed_trades || 0} closed`;
+      }
 
       if (Number.isFinite(equity) && equity > 0) {
         document.getElementById("hero-equity").textContent = `$${equity.toLocaleString(

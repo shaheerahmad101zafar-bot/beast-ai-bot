@@ -23,6 +23,7 @@ import config
 from database import ring_buffer
 from fast_json import loads
 from network_tuning import apply_global_socket_tuning
+from websocket_aggregator import websocket_aggregator
 
 apply_global_socket_tuning()
 
@@ -254,7 +255,9 @@ class BinanceFuturesListener:
             self.reconnect_attempts += 1
             self.last_backoff_s = backoff
             connected_once = False
-            for base in _binance_ws_bases():
+            bases = list(_binance_ws_bases())
+            websocket_aggregator.configure(bases)
+            for base in bases:
                 if self._stop.is_set():
                     break
                 url = self._build_url(base)
@@ -285,6 +288,7 @@ class BinanceFuturesListener:
                         )
                         while not self._stop.is_set():
                             try:
+                                frame_started = asyncio.get_running_loop().time()
                                 raw = await asyncio.wait_for(ws.recv(), timeout=30)
                             except asyncio.TimeoutError:
                                 stale_ticks += 1
@@ -299,6 +303,18 @@ class BinanceFuturesListener:
                             stale_ticks = 0
                             self.last_message_at = asyncio.get_running_loop().time()
                             await self._handle(msg)
+                            frame_latency_ms = (asyncio.get_running_loop().time() - frame_started) * 1000.0
+                            if websocket_aggregator.report_frame(frame_latency_ms, base):
+                                await self.on_message(
+                                    {
+                                        "type": "binance_failover",
+                                        "from": base,
+                                        "to": websocket_aggregator.active,
+                                        "frame_latency_ms": round(frame_latency_ms, 3),
+                                        "ts": _utc_iso(),
+                                    }
+                                )
+                                raise TimeoutError(f"High frame latency {frame_latency_ms:.2f}ms on {base}")
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:  # noqa: BLE001
@@ -321,6 +337,8 @@ class BinanceFuturesListener:
                             "ts": _utc_iso(),
                         }
                     )
+                    if websocket_aggregator.active and websocket_aggregator.active != base:
+                        continue
                     if connected_once:
                         break  # reconnect same base first after drop
             self.connected = False
@@ -444,9 +462,9 @@ class WebSocketHub:
 
     async def _on_binance_message(self, payload: dict[str, Any]) -> None:
         msg_type = payload.get("type")
-        if msg_type in {"binance_connected", "binance_disconnected"}:
+        if msg_type in {"binance_connected", "binance_disconnected", "binance_failover"}:
             self.push_activity(
-                f"Binance WS {msg_type}: {payload.get('base')}",
+                f"Binance WS {msg_type}: {payload.get('base') or payload.get('from')}",
                 "stream",
             )
             await self.manager.broadcast("market", payload)
@@ -596,6 +614,7 @@ class WebSocketHub:
             "events": status.get("events") or [],
             "activity": list(self._activity[-20:]),
             "ticks": self.ticks,
+            "aggregator": websocket_aggregator.snapshot(),
             "stream": {
                 "binance_connected": self.listener.connected,
                 "binance_base": self.listener.active_base,

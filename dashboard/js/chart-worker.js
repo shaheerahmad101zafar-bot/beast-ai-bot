@@ -52,6 +52,27 @@ function rsiSeries(closes, period) {
   return out;
 }
 
+let lastPurgeAt = Date.now();
+let computeCount = 0;
+
+function maybePurge(state) {
+  const now = Date.now();
+  computeCount += 1;
+  if (now - lastPurgeAt < 5 * 60 * 1000) return state;
+  lastPurgeAt = now;
+  const candles = Array.isArray(state.candles) ? state.candles.slice(-90) : [];
+  const depth = state.depth || { bids: [], asks: [] };
+  return {
+    ...state,
+    candles,
+    depth: {
+      bids: (depth.bids || []).slice(0, 20),
+      asks: (depth.asks || []).slice(0, 20),
+    },
+    gc: { purged: true, at: now, computeCount },
+  };
+}
+
 self.onmessage = (event) => {
   const msg = event.data || {};
   if (msg.type === "parse_ws") {
@@ -86,20 +107,21 @@ self.onmessage = (event) => {
   const bidQty = depth.bids.reduce((acc, row) => acc + Number(row[1] || 0), 0);
   const askQty = depth.asks.reduce((acc, row) => acc + Number(row[1] || 0), 0);
   const obi = bidQty + askQty > 0 ? clamp(((bidQty - askQty) / (bidQty + askQty)) * 100, -100, 100) : 0;
+  const state = maybePurge({
+    candles,
+    ma20,
+    ma50,
+    bbMid,
+    bbSd,
+    rsi,
+    minP,
+    maxP,
+    maxVol,
+    obi,
+    depth,
+  });
   self.postMessage({
     type: "chart_state",
-    state: {
-      candles,
-      ma20,
-      ma50,
-      bbMid,
-      bbSd,
-      rsi,
-      minP,
-      maxP,
-      maxVol,
-      obi,
-      depth,
-    },
+    state,
   });
 };

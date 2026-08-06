@@ -53,7 +53,7 @@ from admin_settings import admin_settings
 from arbitrage_scanner import arbitrage_scanner
 from auth_validator import auth_validator
 from backup_engine import backup_engine
-from backtest import backtester
+from backtest_engine import backtester
 from billing import billing
 from diagnostic_engine import diagnostic_engine
 from hft_scalper import hft_scalper
@@ -1109,6 +1109,34 @@ async def api_backtest(
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("detail") or "Backtest failed")
     return {"ok": True, "user_id": user.id, **result}
+
+
+@app.get("/api/public-proof")
+async def api_public_proof() -> dict[str, Any]:
+    portfolio = bot_service.get_portfolio()
+    history = bot_service.get_trade_history(limit=25).get("trades") or []
+    redacted = [
+        {
+            "timestamp": t.get("timestamp"),
+            "pair": t.get("pair"),
+            "direction": t.get("direction"),
+            "entry_price": t.get("entry_price"),
+            "exit_price": t.get("exit_price"),
+            "pnl_usd": t.get("pnl_usd"),
+            "exit_reason": t.get("exit_reason"),
+        }
+        for t in history
+    ]
+    return {
+        "ok": True,
+        "equity": float(portfolio.get("equity") or 0.0),
+        "wallet_balance": float(portfolio.get("wallet_balance") or 0.0),
+        "win_rate": float(portfolio.get("win_rate") or 0.0),
+        "closed_trades": int(portfolio.get("closed_trades") or 0),
+        "open_positions": int(portfolio.get("open_positions") or 0),
+        "recent_trades": redacted,
+        "quant_metrics": portfolio.get("quant_metrics") or {},
+    }
 
 
 @app.post("/api/simulate-stress")
