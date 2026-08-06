@@ -54,6 +54,13 @@ MAX_SLIPPAGE_PCT: Final[float] = 0.0008  # 0.08% dynamic ceiling (volatile pairs
 MAX_CORRELATED_ALT_POSITIONS: Final[int] = 3
 CORRELATION_THRESHOLD: Final[float] = 0.70
 CORRELATION_LOOKBACK: Final[int] = 48
+# 1-minute ATR spike → hard max leverage caps
+VOL_LEV_CAP_SOFT_ATR: Final[float] = 0.012  # 1.2% → max 8x
+VOL_LEV_CAP_HARD_ATR: Final[float] = 0.020  # 2.0% → max 5x
+VOL_LEV_CAP_EXTREME_ATR: Final[float] = 0.035  # 3.5% → max 2x
+VOL_LEV_SOFT_MAX: Final[float] = 8.0
+VOL_LEV_HARD_MAX: Final[float] = 5.0
+VOL_LEV_EXTREME_MAX: Final[float] = 2.0
 BINANCE_FUTURES_TRADE_WS: Final[str] = os.getenv(
     "BINANCE_FUTURES_TRADE_WS",
     "wss://ws-fapi.binance.com/ws-fapi/v1",

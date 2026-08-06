@@ -45,34 +45,44 @@ class TradingEngine:
         regime: dict[str, Any],
         wick: dict[str, Any],
         sentiment_score: float | None,
+        depth_guard: dict[str, Any] | None = None,
+        volume_score: float | None = None,
+        oi_proxy: float | None = None,
     ) -> str:
         if final == "HOLD":
             return "No strong AI confluence edge detected."
         parts: list[str] = []
         if votes.get("rsi", 0) > 0:
-            parts.append("RSI oversold rebound")
+            parts.append("RSI oversold")
         elif votes.get("rsi", 0) < 0:
-            parts.append("RSI overbought fade")
+            parts.append("RSI overbought")
         if votes.get("macd", 0) > 0:
-            parts.append("MACD momentum turned positive")
+            parts.append("MACD hist +")
         elif votes.get("macd", 0) < 0:
-            parts.append("MACD momentum rolled negative")
-        if votes.get("volume", 0) > 0:
-            parts.append("volume expansion confirmed move")
-        if votes.get("oi", 0) > 0:
-            parts.append("positioning build supported continuation")
-        elif votes.get("oi", 0) < 0:
-            parts.append("positioning unwind supported reversal")
+            parts.append("MACD hist -")
+        if volume_score is not None and volume_score >= 0.55:
+            parts.append(f"Volume thrust {volume_score:+.2f}")
+        elif votes.get("volume", 0) > 0:
+            parts.append("Volume expansion")
+        if oi_proxy is not None:
+            delta = (float(oi_proxy) - 0.5) * 2.0
+            if abs(delta) >= 0.15:
+                parts.append(f"Order Book Delta {delta:+.2f}")
+        elif votes.get("oi", 0) != 0:
+            parts.append("OI positioning aligned")
+        slip = float((depth_guard or {}).get("slippage_pct") or 0.0)
+        if slip > 0:
+            parts.append(f"Book spread {slip:.3f}%")
         if sentiment_score is not None:
             if sentiment_score >= 60:
-                parts.append("positive news tone")
+                parts.append("Bullish news tone")
             elif sentiment_score <= 40:
-                parts.append("defensive news tone")
+                parts.append("Defensive news tone")
         if regime.get("label"):
-            parts.append(f"regime {regime['label'].replace('_', ' ').title()}")
+            parts.append(f"Regime {str(regime['label']).replace('_', ' ').title()}")
         if wick.get("ok"):
-            parts.append("anti-wick filter passed")
-        return " + ".join(parts[:5]) or "AI confluence aligned across momentum, volume, and risk filters."
+            parts.append("Anti-wick OK")
+        return " + ".join(parts[:5]) or "AI confluence aligned"
 
     def _volume_score(self, df: pd.DataFrame) -> float:
         if "volume" not in df.columns or len(df) < 20:
@@ -307,12 +317,23 @@ class TradingEngine:
         atr_pct_frac = (atr_val / mark) if mark > 0 and atr_val > 0 else 0.0
         exec_slip = slippage_guard.volatility_slippage_pct(atr_pct=atr_pct_frac)
 
+        # Short-horizon range as 1-minute volatility proxy from last few bars
+        recent_range_pct = 0.0
+        if len(df) >= 3 and mark > 0:
+            hi = float(df["high"].tail(3).max())
+            lo = float(df["low"].tail(3).min())
+            recent_range_pct = max(0.0, (hi - lo) / mark)
+        # Approximate 1m ATR from bar ATR scaled by sqrt of minutes in bar (default 60 for 1h)
+        atr_1m = atr_val / (60.0 ** 0.5) if atr_val > 0 else 0.0
+
         return {
             **base,
             "symbol": symbol,
             "signal": final,
             "confidence_score": round(float(conf), 2),
             "atr": atr_val,
+            "atr_1m": round(atr_1m, 8),
+            "recent_range_pct": round(recent_range_pct, 6),
             "atr_pct_frac": round(atr_pct_frac, 6),
             "execution_slippage_pct": round(exec_slip, 6),
             "taker_fee_rate": float(config.FUTURES_FEE_RATE),
@@ -338,6 +359,9 @@ class TradingEngine:
                 regime=regime,
                 wick=wick,
                 sentiment_score=sentiment_score,
+                depth_guard=depth_guard,
+                volume_score=vol_s,
+                oi_proxy=oi_s,
             ),
         }
 

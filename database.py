@@ -56,6 +56,7 @@ class User(Base):
     payment_provider: Mapped[str | None] = mapped_column(String(32), nullable=True)
     subscription_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    webhook_key: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
 
     api_keys: Mapped[list[UserApiKey]] = relationship(back_populates="user", cascade="all, delete-orphan")
@@ -195,6 +196,7 @@ def _ensure_user_columns() -> None:
         "avatar_url": "ALTER TABLE users ADD COLUMN avatar_url VARCHAR(512)",
         "last_login_at": "ALTER TABLE users ADD COLUMN last_login_at DATETIME",
         "last_seen_at": "ALTER TABLE users ADD COLUMN last_seen_at DATETIME",
+        "webhook_key": "ALTER TABLE users ADD COLUMN webhook_key VARCHAR(64)",
     }
     with engine.begin() as conn:
         for name, sql in alters.items():

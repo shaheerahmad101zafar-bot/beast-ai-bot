@@ -136,6 +136,8 @@
     leaderDrawdown: document.getElementById("leader-drawdown"),
     leaderSymbol: document.getElementById("leader-symbol"),
     btnStressTest: document.getElementById("btn-stress-test"),
+    btnExportCsv: document.getElementById("btn-export-csv"),
+    btnExportPdf: document.getElementById("btn-export-pdf"),
     stressMsg: document.getElementById("stress-msg"),
     stressResults: document.getElementById("stress-results"),
     copilotModal: document.getElementById("copilot-modal"),
@@ -223,6 +225,33 @@
     const text = String(reason || "").trim();
     if (!text) return "";
     return `<details class="reason-accordion"><summary>Why AI entered this trade?</summary><p>${text}</p></details>`;
+  }
+
+  function aiReasonBadge(reason) {
+    const text = String(reason || "").trim();
+    if (!text) return `<span class="ai-reason-badge muted">—</span>`;
+    const short = text.length > 64 ? `${text.slice(0, 61)}…` : text;
+    return `<span class="ai-reason-badge" title="${text.replace(/"/g, "&quot;")}">${short}</span>${renderReasonAccordion(
+      text
+    )}`;
+  }
+
+  async function downloadExport(path, filename) {
+    const token = localStorage.getItem("beast_token") || "";
+    const res = await fetch(path, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: "include",
+    });
+    if (!res.ok) throw new Error(`Export failed (${res.status})`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }
 
   function renderActivity(rows) {
@@ -730,7 +759,7 @@
     const positions = portfolio.positions || [];
     els.posMeta.textContent = `${positions.length} open`;
     if (!positions.length) {
-      els.positionsBody.innerHTML = `<tr><td colspan="7" class="empty">No open positions</td></tr>`;
+      els.positionsBody.innerHTML = `<tr><td colspan="8" class="empty">No open positions</td></tr>`;
       return;
     }
     els.positionsBody.innerHTML = positions
@@ -744,9 +773,8 @@
         <td data-label="Mark"><span class="metric-num">${fmt(p.mark_price)}</span></td>
         <td data-label="SL"><span class="metric-num">${fmt(p.stop_loss)}</span></td>
         <td data-label="TP"><span class="metric-num">${fmt(p.take_profit)}</span></td>
-        <td data-label="Live PnL" class="${pnlClass(upnl)}"><span class="metric-num">${money(upnl)}</span>${renderReasonAccordion(
-          p.ai_reasoning
-        )}</td>
+        <td data-label="Live PnL" class="${pnlClass(upnl)}"><span class="metric-num">${money(upnl)}</span></td>
+        <td data-label="AI Reason">${aiReasonBadge(p.ai_reasoning)}</td>
       </tr>`;
       })
       .join("");
@@ -778,7 +806,7 @@
         <td data-label="Exit"><span class="metric-num">${fmt(t.exit_price)}</span></td>
         <td data-label="PnL" class="${pnlClass(pnl)}"><span class="metric-num">${money(pnl)}</span></td>
         <td data-label="Badge">${badge}</td>
-        <td data-label="Reason" title="${t.exit_reason || "—"}"><span class="truncate-cell">${t.exit_reason || "—"}</span>${renderReasonAccordion(t.ai_reasoning)}</td>
+        <td data-label="AI Reason">${aiReasonBadge(t.ai_reasoning || t.exit_reason)}</td>
       </tr>`;
       })
       .join("");
@@ -1340,6 +1368,20 @@
 
   if (els.btnStressTest) {
     els.btnStressTest.addEventListener("click", () => runStressTest().catch(console.error));
+  }
+  if (els.btnExportCsv) {
+    els.btnExportCsv.addEventListener("click", () => {
+      downloadExport("/api/export/trades.csv", "beast_ai_trade_ledger.csv").catch((err) =>
+        alert(err.message || "CSV export failed")
+      );
+    });
+  }
+  if (els.btnExportPdf) {
+    els.btnExportPdf.addEventListener("click", () => {
+      downloadExport("/api/export/trades.pdf", "beast_ai_trade_ledger.pdf").catch((err) =>
+        alert(err.message || "PDF export failed")
+      );
+    });
   }
 
   if (els.btnCopilot) els.btnCopilot.addEventListener("click", () => setCopilotOpen(true));

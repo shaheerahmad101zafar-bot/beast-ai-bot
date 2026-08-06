@@ -344,10 +344,11 @@
                   <th>SL</th>
                   <th>TP</th>
                   <th>Live PnL</th>
+                  <th>AI Reason</th>
                 </tr>
               </thead>
               <tbody id="positions-body">
-                <tr class="skeleton-row"><td><span class="skeleton-line short"></span></td><td><span class="skeleton-line short"></span></td><td><span class="skeleton-line"></span></td><td><span class="skeleton-line"></span></td><td><span class="skeleton-line mid"></span></td><td><span class="skeleton-line mid"></span></td><td><span class="skeleton-line short"></span></td></tr>
+                <tr class="skeleton-row"><td><span class="skeleton-line short"></span></td><td><span class="skeleton-line short"></span></td><td><span class="skeleton-line"></span></td><td><span class="skeleton-line"></span></td><td><span class="skeleton-line mid"></span></td><td><span class="skeleton-line mid"></span></td><td><span class="skeleton-line short"></span></td><td><span class="skeleton-line mid"></span></td></tr>
               </tbody>
             </table>
           </div>
@@ -357,7 +358,11 @@
       <section class="panel mb-8 panel-with-pwa-pad">
         <div class="panel-head">
           <h2 class="panel-title">Trade Audit Log</h2>
-          <span id="history-meta" class="panel-meta">—</span>
+          <div class="flex items-center gap-2 flex-wrap">
+            <button id="btn-export-csv" type="button" class="ghost-btn text-xs">Export CSV</button>
+            <button id="btn-export-pdf" type="button" class="ghost-btn text-xs">Export PDF</button>
+            <span id="history-meta" class="panel-meta">—</span>
+          </div>
         </div>
         <div class="table-scroll overflow-x-auto">
           <table class="data-table cards-on-mobile">
@@ -370,7 +375,7 @@
                 <th>Exit</th>
                 <th>PnL</th>
                 <th>Badge</th>
-                <th>Reason</th>
+                <th>AI Reason</th>
               </tr>
             </thead>
             <tbody id="history-body">

@@ -1048,6 +1048,45 @@ body[data-ui-mode="simple"] #tab-billing {
 .pnl-badge.profit { background: rgba(0, 245, 160, 0.18); color: #00f5a0; }
 .pnl-badge.loss { background: rgba(244, 63, 94, 0.18); color: #fb7185; }
 
+.ai-reason-badge {
+  display: inline-flex;
+  max-width: 16rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.4rem;
+  border: 1px solid rgba(125, 211, 252, 0.28);
+  background: rgba(14, 116, 144, 0.18);
+  color: #bae6fd;
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+.ai-reason-badge.muted {
+  border-color: rgba(148, 163, 184, 0.25);
+  background: rgba(51, 65, 85, 0.35);
+  color: #94a3b8;
+}
+
+.ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem 0.7rem;
+  border-radius: 0.45rem;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.55);
+  color: #e2e8f0;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ghost-btn:hover {
+  border-color: rgba(125, 211, 252, 0.55);
+  color: #fff;
+}
+
 .margin-toggle {
   display: inline-flex;
   gap: 0.3rem;

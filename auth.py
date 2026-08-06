@@ -135,6 +135,7 @@ def user_to_public(user: User) -> dict[str, Any]:
             user.last_seen_at.isoformat() if getattr(user, "last_seen_at", None) else None
         ),
         "is_admin": bool(getattr(user, "is_admin", False)),
+        "webhook_key_set": bool(str(getattr(user, "webhook_key", None) or "").strip()),
         "created_at": user.created_at.isoformat() if user.created_at else None,
         "watchlist": watchlist,
         "equity": equity,

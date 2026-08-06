@@ -195,26 +195,54 @@ class RiskManager:
         self,
         entry_price: float,
         atr: float,
+        *,
+        atr_1m: float | None = None,
+        recent_range_pct: float | None = None,
     ) -> dict[str, float]:
         """
-        Inverse-volatility leverage from ATR.
-
-        leverage ≈ max_leverage * (target_atr_pct / atr_pct), clamped to bounds.
-        Higher ATR% (chop / expansion) => lower leverage.
+        Inverse-volatility leverage from ATR, with dynamic max-leverage caps
+        when 1-minute / short-horizon volatility spikes.
         """
         if entry_price <= 0:
             raise ValueError("entry_price must be positive")
 
         atr_pct = (atr / entry_price) if atr > 0 and atr == atr else self.target_atr_pct
-        raw = self.max_leverage * (self.target_atr_pct / atr_pct)
-        leverage = max(self.min_leverage, min(self.max_leverage, raw))
+        # Prefer explicit 1m ATR; else short-horizon range; else scale bar ATR toward 1m proxy
+        if atr_1m is not None and atr_1m > 0:
+            spike_pct = float(atr_1m) / entry_price
+        elif recent_range_pct is not None and recent_range_pct > 0:
+            spike_pct = float(recent_range_pct)
+        else:
+            spike_pct = atr_pct
+
+        vol_cap = self.volatility_max_leverage(spike_pct)
+        effective_max = min(self.max_leverage, vol_cap)
+        raw = effective_max * (self.target_atr_pct / max(atr_pct, 1e-9))
+        leverage = max(self.min_leverage, min(effective_max, raw))
 
         return {
             "atr_pct": round(atr_pct * 100.0, 4),  # percent points for display
             "atr_pct_frac": round(atr_pct, 6),
+            "spike_atr_pct": round(spike_pct * 100.0, 4),
+            "vol_leverage_cap": round(vol_cap, 2),
             "leverage": round(leverage, 2),
             "leverage_raw": round(raw, 4),
         }
+
+    @staticmethod
+    def volatility_max_leverage(spike_atr_pct: float) -> float:
+        """
+        Down-scale max allowable leverage when 1-minute volatility spikes.
+        spike_atr_pct is a fraction (0.02 = 2%).
+        """
+        spike = float(spike_atr_pct or 0.0)
+        if spike >= float(config.VOL_LEV_CAP_EXTREME_ATR):
+            return float(config.VOL_LEV_EXTREME_MAX)
+        if spike >= float(config.VOL_LEV_CAP_HARD_ATR):
+            return float(config.VOL_LEV_HARD_MAX)
+        if spike >= float(config.VOL_LEV_CAP_SOFT_ATR):
+            return float(config.VOL_LEV_SOFT_MAX)
+        return float(MAX_LEVERAGE)
 
     def evaluate_trade(
         self,
@@ -224,9 +252,16 @@ class RiskManager:
         entry = float(signal_payload["entry_price"])
         stop = float(signal_payload["stop_loss_price"])
         atr = float(signal_payload.get("atr") or 0.0)
+        atr_1m = signal_payload.get("atr_1m")
+        recent_range_pct = signal_payload.get("recent_range_pct")
 
         sizing = self.calculate_position_size(entry, stop)
-        lev = self.calculate_leverage(entry, atr)
+        lev = self.calculate_leverage(
+            entry,
+            atr,
+            atr_1m=float(atr_1m) if atr_1m is not None else None,
+            recent_range_pct=float(recent_range_pct) if recent_range_pct is not None else None,
+        )
 
         required_margin = (
             sizing["position_size_notional"] / lev["leverage"]

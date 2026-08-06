@@ -214,6 +214,10 @@ app = FastAPI(
     description="Dynamic admin configurator, media landing, security, CMS, and trading plane",
     lifespan=lifespan,
 )
+
+from routes import router as institutional_router  # noqa: E402
+
+app.include_router(institutional_router)
 configure_security(app)
 
 DASHBOARD_DIR = Path(__file__).resolve().parent / config.DASHBOARD_DIR
